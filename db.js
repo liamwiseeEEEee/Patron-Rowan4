@@ -21,16 +21,16 @@
  * (this device only) so the app never breaks.
  * ============================================================ */
 window.PatronDB = (function () {
-  // Keys: a localStorage override (☁ panel) wins; otherwise the baked-in
-  // project keys connect every device automatically with no pasting.
+  // Key resolution (first non-empty wins) — NO keys hardcoded here, so each fork
+  // connects to its OWN database, never the original author's:
+  //   1. localStorage override (user pasted keys via the ☁ panel)
+  //   2. /api/config  (THIS deploy's Vercel env vars: SUPABASE_URL / SUPABASE_ANON_KEY)
+  // A fresh fork with no env vars set stays local-only until its owner adds them.
   const _ovUrl = (localStorage.getItem('po_supabase_url') || '').trim();
   const _ovKey = (localStorage.getItem('po_supabase_key') || '').trim();
 
-  const BAKED_URL = 'https://abmhilbhbkzsimopyuwq.supabase.co';
-  const BAKED_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFibWhpbGJoYmt6c2ltb3B5dXdxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODAzMDY3NjAsImV4cCI6MjA5NTg4Mjc2MH0.ZFW7nxQhNnQmobPvHZaK19dj1ITJZqBKJ1g2GQzwwKM';
-
-  let URL = _ovUrl || BAKED_URL;
-  let KEY = _ovKey || BAKED_KEY;
+  let URL = _ovUrl;
+  let KEY = _ovKey;
   let ready = false;
   let sb = null;
 

@@ -41,6 +41,17 @@ drop policy if exists "progress delete" on storage.objects;
 create policy "progress read"   on storage.objects for select using (bucket_id = 'progress-photos');
 create policy "progress write"  on storage.objects for insert with check (bucket_id = 'progress-photos');
 create policy "progress delete" on storage.objects for delete using (bucket_id = 'progress-photos');
+
+-- REALTIME (instant cross-device updates)
+do $$
+begin
+  if not exists (
+    select 1 from pg_publication_tables
+    where pubname = 'supabase_realtime' and schemaname = 'public' and tablename = 'app_state'
+  ) then
+    alter publication supabase_realtime add table app_state;
+  end if;
+end $$;
 ```
 
 ## 4. Get your 2 keys
