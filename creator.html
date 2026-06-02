@@ -200,6 +200,7 @@ body{background:var(--bg);color:var(--fg);font-family:var(--font-inter),-apple-s
 @media(max-width:600px){.accountEditRow{grid-template-columns:1fr 1fr}}
 .addForm{display:flex;gap:8px;margin-top:var(--space-3);flex-wrap:wrap}
 .addForm .input{flex:1;min-width:120px}
+.ytKeyRow{display:flex;gap:8px;margin-top:var(--space-4);padding-top:var(--space-4);border-top:1px solid var(--border);flex-wrap:wrap;align-items:flex-end}
 
 /* Analytics */
 .statsHero{display:grid;grid-template-columns:1fr 1.1fr;gap:var(--space-4);align-items:center;padding:var(--space-4);background:var(--card-elevated);border:1px solid var(--border);border-radius:var(--radius-lg);margin-bottom:var(--space-4)}
@@ -322,13 +323,19 @@ function save(){try{localStorage.setItem(LS,JSON.stringify(state));}catch{}}
 let state=load();
 const ui={editAccounts:false,editSchedule:null,addAccount:false,refreshing:null};
 
+/* YouTube API key — stored per-device so each user (incl. forkers) uses their own.
+ * Never committed, never synced to the cloud — just this browser's localStorage. */
+const YT_KEY_LS='creator_youtube_key_v1';
+function ytKey(){try{return localStorage.getItem(YT_KEY_LS)||'';}catch(e){return '';}}
+function setYtKey(v){try{if(v)localStorage.setItem(YT_KEY_LS,v);else localStorage.removeItem(YT_KEY_LS);}catch(e){}}
+
 /* ============================ Mutations ============================ */
 function refreshErr(j){
   const e=j&&j.error;
   if(e==='rate_limited')return 'TikTok rate-limited the request — wait a minute and try again.';
   if(e==='not_found')return "Couldn't find that profile — double-check the handle.";
   if(e==='parse_failed')return (j&&j.message)||"Couldn't read the count — TikTok may have changed their page.";
-  if(e==='not_configured')return 'YouTube isn’t configured on the host yet (needs YOUTUBE_API_KEY). Enter it manually for now.';
+  if(e==='not_configured')return 'Add your YouTube API key first — tap Edit on Accounts, paste your key, and Save (it’s free; steps are right there). Then refresh.';
   if(e==='no_handle')return 'Add a handle first, then refresh.';
   return 'Refresh failed — try again shortly.';
 }
@@ -347,7 +354,7 @@ const A={
     if(!ON_SERVER){alert('Live auto-refresh runs on the deployed app (Vercel) — locally just tap Edit and type the number. Growth + sparklines build as you update.');return;}
     let ep;
     if(a.platform==='tiktok')ep='/api/tiktok?handle='+encodeURIComponent(a.handle);
-    else if(a.platform==='youtube'||a.platform==='youtube_long')ep='/api/youtube?handle='+encodeURIComponent(a.handle);
+    else if(a.platform==='youtube'||a.platform==='youtube_long'){ep='/api/youtube?handle='+encodeURIComponent(a.handle);const k=ytKey();if(k)ep+='&key='+encodeURIComponent(k);}
     else{alert((PLATFORM_LABELS[a.platform]||a.platform)+' auto-refresh needs that platform’s login (OAuth), which isn’t set up. Enter it manually via Edit.');return;}
     ui.refreshing=id;render();
     try{
@@ -429,17 +436,30 @@ function accountEditRow(a){
     +(LIVE.has(a.platform)?refreshBtnHtml(a):'<span class="deltaMuted">manual</span>')
     +'<button class="delBtn" data-act="rmAccount" data-id="'+a.id+'">×</button></li>';
 }
+function youtubeKeyFieldHtml(){
+  const k=ytKey();
+  return '<div class="ytKeyRow">'
+    +'<div class="field" style="flex:1;min-width:220px"><span class="fieldLabel">YouTube API key — for live subscriber counts</span>'
+    +'<input class="input" id="ytKeyInput" type="password" autocomplete="off" placeholder="AIza… paste your YouTube Data API key" value="'+esc(k)+'"></div>'
+    +'<button class="btnSm" data-act="saveYtKey">'+(k?'Update key':'Save key')+'</button>'
+    +(k?'<button class="btnSm btnDanger" data-act="clearYtKey">Clear</button>':'')
+    +'<p class="noteLine" style="flex-basis:100%;margin-top:6px">'+(k?'Key saved on this device ✓ — tap ↻ on a YouTube account to pull live counts. ':'')
+    +'Free key: <b>console.cloud.google.com</b> → create a project → enable <b>“YouTube Data API v3”</b> → Credentials → <b>Create API key</b>. Stored only on this device, never uploaded.</p>'
+    +'</div>';
+}
 function accountsSection(){
   const reach=state.accounts.reduce((s,a)=>s+(typeof a.followers==='number'?a.followers:0),0);
   let body;
-  if(state.accounts.length===0)body='<p class="emptyText">No accounts linked yet. Tap Edit to add the platforms where this brand lives.</p>';
-  else if(ui.editAccounts){
-    body='<ul class="accountList">'+state.accounts.map(accountEditRow).join('')+'</ul>'
-      +'<form class="addForm" data-act="addAccountForm"><select class="select" id="newPlat">'+ALL_PLATFORMS.map(p=>'<option value="'+p+'">'+PLATFORM_LABELS[p]+'</option>').join('')+'</select><input class="input" id="newHandle" placeholder="@handle or url"><button type="submit" class="primaryBtn">+ Add</button></form>';
+  if(ui.editAccounts){
+    body=(state.accounts.length?'<ul class="accountList">'+state.accounts.map(accountEditRow).join('')+'</ul>':'<p class="emptyText">Add the platforms where this brand lives — pick one and enter your @handle.</p>')
+      +'<form class="addForm" data-act="addAccountForm"><select class="select" id="newPlat">'+ALL_PLATFORMS.map(p=>'<option value="'+p+'">'+PLATFORM_LABELS[p]+'</option>').join('')+'</select><input class="input" id="newHandle" placeholder="@handle or url"><button type="submit" class="primaryBtn">+ Add</button></form>'
+      +youtubeKeyFieldHtml();
+  } else if(state.accounts.length===0){
+    body='<p class="emptyText">No accounts linked yet. Tap <b>+ Add account</b> to add the platforms where this brand lives.</p>';
   } else body='<div class="accountGrid">'+state.accounts.map(accountCardCompact).join('')+'</div>';
   return '<section class="card"><div class="cardHead"><span class="eyebrow"><span class="eyebrowMark">·02</span><span class="eyebrowRule"></span>Accounts</span>'
     +'<div class="headRight">'+(reach>0?'<span class="ccReach">'+reach.toLocaleString()+'<span class="ccReachLabel">reach</span></span>':'')
-    +(state.accounts.length>0?'<button class="editBtn" data-act="toggleEdit">'+(ui.editAccounts?'Done':'Edit')+'</button>':'')+'</div></div>'
+    +'<button class="editBtn" data-act="toggleEdit">'+(ui.editAccounts?'Done':(state.accounts.length?'Edit':'+ Add account'))+'</button></div></div>'
     +body+'</section>';
 }
 
@@ -528,6 +548,8 @@ document.addEventListener('click',e=>{
   else if(act==='rmAccount')A.removeAccount(id);
   else if(act==='rmLink')A.removeLink(id);
   else if(act==='refresh')A.refresh(id);
+  else if(act==='saveYtKey'){const el=document.getElementById('ytKeyInput');const v=(el&&el.value||'').trim();if(!v){alert('Paste your YouTube API key first.');return;}setYtKey(v);render();alert('YouTube API key saved on this device. Tap ↻ on a YouTube account to pull live counts.');}
+  else if(act==='clearYtKey'){setYtKey('');render();}
 });
 document.addEventListener('submit',e=>{
   const f=e.target.closest('[data-act]');if(!f)return;e.preventDefault();

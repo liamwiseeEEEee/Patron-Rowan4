@@ -5,14 +5,19 @@
 // by the deployer — NOT per user). No login: public channel stats are key-readable.
 // Returns subscriberCount (rounded by YouTube to 3 sig-figs), viewCount, videoCount.
 
-const KEY = process.env.YOUTUBE_API_KEY;
+const ENV_KEY = process.env.YOUTUBE_API_KEY;
 const BASE = 'https://www.googleapis.com/youtube/v3';
 
 module.exports = async (req, res) => {
   res.setHeader('content-type', 'application/json');
+
+  const params = new URL(req.url, 'http://x').searchParams;
+  // Key priority: per-user key passed from the app (each forker uses their own),
+  // falling back to a host-wide YOUTUBE_API_KEY env var if the deployer set one.
+  const KEY = (params.get('key') || '').trim() || ENV_KEY;
   if (!KEY) { res.statusCode = 200; res.end(JSON.stringify({ ok: false, error: 'not_configured' })); return; }
 
-  let handle = (new URL(req.url, 'http://x').searchParams.get('handle') || '').trim();
+  let handle = (params.get('handle') || '').trim();
   if (!handle) { res.statusCode = 400; res.end(JSON.stringify({ ok: false, error: 'no_handle' })); return; }
   const um = handle.match(/youtube\.com\/(?:channel\/([\w-]+)|(@[\w.-]+))/i); // accept a full URL
   if (um) handle = um[1] || um[2];
