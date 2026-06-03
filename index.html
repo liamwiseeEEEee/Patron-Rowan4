@@ -24,6 +24,7 @@ img{max-width:100%;height:auto}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@500;600;700;800&family=Exo+2:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 <script>try{document.documentElement.setAttribute("data-theme",localStorage.getItem("patron_theme")||"nocturne");}catch(e){document.documentElement.setAttribute("data-theme","nocturne");}</script>
+<script src="icons.js?v=1"></script>
 <style>
 /* ============================================================
  * Liam — the main dashboard. Bento hub linking every app
@@ -138,10 +139,12 @@ body { background: var(--bg); color: var(--fg); font-family: var(--font-ui), -ap
 @keyframes cardIn { to { opacity: 1; transform: translateY(0); } }
 /* staggered entrance */
 .bento > *:nth-child(1){animation-delay:.02s}.bento > *:nth-child(2){animation-delay:.06s}.bento > *:nth-child(3){animation-delay:.10s}.bento > *:nth-child(4){animation-delay:.14s}.bento > *:nth-child(5){animation-delay:.18s}.bento > *:nth-child(6){animation-delay:.22s}.bento > *:nth-child(7){animation-delay:.26s}.bento > *:nth-child(8){animation-delay:.30s}.bento > *:nth-child(9){animation-delay:.34s}.bento > *:nth-child(10){animation-delay:.38s}
-.cardArt { position: relative; aspect-ratio: 16/10; background: var(--art, linear-gradient(135deg,#8B5CF6,#22D3EE)); display:grid; place-items:center; overflow:hidden; }
+.cardArt { position: relative; aspect-ratio: 16/10; background: radial-gradient(circle at 50% 42%, #16162a, #0b0b14 72%); display:grid; place-items:center; overflow:hidden; }
+.cardArt::before { content:''; position:absolute; inset:0; background: var(--art, linear-gradient(135deg,#8B5CF6,#22D3EE)); opacity: 0.13; }
 .cardArt::after { content:''; position:absolute; inset:0; background: radial-gradient(120% 80% at 50% 120%, rgba(0,0,0,.45), transparent 70%); }
-.cardArtIcon { font-size: 44px; filter: drop-shadow(0 4px 14px rgba(0,0,0,.45)); transition: transform var(--duration) var(--ease-premium); z-index:1; }
-.card:hover .cardArtIcon { transform: scale(1.12) rotate(-3deg); }
+.cardArtIcon { position: relative; z-index:1; display:grid; place-items:center; transition: transform var(--duration) var(--ease-premium); }
+.cardArtIcon svg { width: 60px; height: 60px; display:block; }
+.card:hover .cardArtIcon { transform: scale(1.08); }
 .cardArtBadge { position:absolute; top:10px; left:10px; z-index:1; font-family: var(--font-mono); font-size: 9px; letter-spacing:.1em; text-transform:uppercase; color:#fff; background: rgba(0,0,0,.4); border:1px solid rgba(255,255,255,.18); backdrop-filter: blur(6px); padding: 4px 9px; border-radius: var(--radius-pill); max-width: calc(100% - 20px); overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .cardBody { display:flex; flex-direction:column; gap: 3px; padding: 14px 15px 15px; }
 .cardName { font-family: var(--font-display); font-weight: 700; font-size: var(--text-lg); letter-spacing: 0.01em; }
@@ -464,12 +467,14 @@ const ART = {
   'macros.html':'linear-gradient(135deg,#F59E0B,#EF4444)',
 };
 function artFor(file){ return ART[file] || 'linear-gradient(135deg,#8B5CF6,#22D3EE)'; }
+/* Animated neon icons live in icons.js (window.DASH_ICONS), keyed by page. */
+function iconSvg(file){ return (window.DASH_ICONS && window.DASH_ICONS[file]) || ''; }
 function cardHtml(a){
   const st = statFor(a.file);
   const priceVal = st ? esc(st.value) : 'Open';
   const priceLabel = st ? esc(st.label) : 'launch';
   return '<a class="card' + (a.wide ? ' tileWide' : '') + '" href="' + a.file + '" style="--art:' + artFor(a.file) + '">'
-    + '<div class="cardArt"><span class="cardArtIcon" aria-hidden>' + a.icon + '</span></div>'
+    + '<div class="cardArt"><span class="cardArtIcon" aria-hidden>' + iconSvg(a.file) + '</span></div>'
     + '<div class="cardBody"><span class="cardName">' + esc(a.name) + '</span><span class="cardDesc">' + esc(a.tag) + '</span>'
     + '<div class="cardFoot"><div class="cardPrice"><span class="cardPriceLabel">' + priceLabel + '</span><span class="cardPriceVal">' + priceVal + '</span></div>'
     + '<button class="cardHeart" type="button" aria-label="Favorite" onclick="event.preventDefault();event.stopPropagation();this.classList.toggle(\'on\')"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 1 0-7.8 7.8l1 1L12 21l7.8-7.6 1-1a5.5 5.5 0 0 0 0-7.8z"/></svg></button></div>'
