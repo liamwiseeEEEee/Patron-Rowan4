@@ -374,6 +374,26 @@ async function syncFitbit(){
   render();
 }
 
+/* ---- Apple Health sync — an iPhone Shortcut pushes Health data to /api/apple,
+   we read it back here. Only applies when Whoop/Fitbit aren't connected. ---- */
+let appleStatus = { connected: false, checked: false };
+async function syncApple(){
+  if (!ON_SERVER) return;
+  try {
+    const r = await fetch('/api/apple', { cache: 'no-store' });
+    const j = await r.json();
+    appleStatus = { connected: !!j.connected, checked: true };
+    if (j.connected && !whoopStatus.connected && !fitbitStatus.connected) {
+      const incomingTs = j.ts || 0;
+      if (!health || health.source === 'apple' || incomingTs > (health.ts || 0)) {
+        health = { source: 'apple', connected: true, ts: j.ts || Date.now(), recovery: j.recovery, sleepHours: j.sleepHours, sleepPerf: j.sleepPerf, sleepTargetHours: j.sleepTargetHours || 8, bedtime: j.bedtime, wakeTime: j.wakeTime, hrv: j.hrv, rhr: j.rhr, strain: j.strain };
+        saveHealth(health);
+      }
+    }
+  } catch (e) { appleStatus = { connected: false, checked: true }; }
+  render();
+}
+
 function sourceLabel(s){ return s === 'apple' ? 'Apple Watch' : s === 'manual' ? 'Manual' : s === 'fitbit' ? 'Fitbit' : 'Whoop'; }
 function recTone(r){ if (r == null) return 'muted'; if (r >= 67) return 'good'; if (r >= 34) return 'watch'; return 'low'; }
 function formatHM(h){ if (h == null) return '—'; const hh = Math.floor(h); const mm = Math.round((h - hh) * 60); return hh + 'h ' + String(mm).padStart(2,'0') + 'm'; }
@@ -820,6 +840,7 @@ applyTheme(currentTheme);
   } catch (e) {}
   syncWhoop();
   syncFitbit();
+  syncApple();
 })();
 </script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
