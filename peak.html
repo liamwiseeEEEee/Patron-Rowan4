@@ -401,11 +401,12 @@ function tickerItems(){
  * Render
  * ============================================================ */
 let whyOpen=false;
+let selectedSrc=null; // which source pill is active (independent of saved data)
 function render(){
   const h=health();
   const dateStr=new Date().toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
   CURVE=buildCurve(); PEAK=peakOf(CURVE);
-  const cur=(h&&h.source)||'manual';
+  const cur=selectedSrc||(h&&h.source)||'manual';
   const pill=(key,label)=>'<button class="srcPill '+(cur===key?'on':'')+'" data-src="'+key+'"><span class="srcDot"></span>'+label+'</button>';
 
   const gem='<svg class="gem" viewBox="0 0 48 48"><defs><linearGradient id="g1" x1="0" y1="0" x2="1" y2="1"><stop offset="0%" stop-color="#6EE7B7"/><stop offset="100%" stop-color="#10B981"/></linearGradient></defs>'
@@ -419,10 +420,14 @@ function render(){
 
   const srcRow='<div class="srcRow"><span class="srcLab">Source</span>'+pill('manual','Manual')+pill('whoop','Whoop')+pill('apple','Apple Watch')+'</div>';
 
+  // Inline daily check-in card — shows whenever Manual is the chosen source.
+  const mCard = (cur==='manual') ? manualCard(h) : '';
+
   if(!h){
-    document.getElementById('app').innerHTML=head+srcRow
-      +'<div class="card empty"><div class="emptyTitle">No vitals yet</div>'
-      +'<p class="emptyBody">Pick a source above — rate how you feel (Manual), connect Whoop, or pull from your Apple Watch. Your day then builds into a score and an energy curve.</p></div>';
+    document.getElementById('app').innerHTML=head+srcRow+mCard
+      +(cur==='manual' ? '' :
+        '<div class="card empty"><div class="emptyTitle">No vitals yet</div>'
+        +'<p class="emptyBody">Pick a source above — rate how you feel (Manual), connect Whoop, or pull from your Apple Watch. Your day then builds into a score and an energy curve.</p></div>');
     return;
   }
 
@@ -468,7 +473,7 @@ function render(){
     +'</div>';
   const daySec='<div class="sec"><span class="secNum">02</span><span class="secTitle">Your day</span><span class="secLine"></span></div>'+curveCard;
 
-  document.getElementById('app').innerHTML=head+srcRow+tk+nowSec+daySec;
+  document.getElementById('app').innerHTML=head+srcRow+mCard+tk+nowSec+daySec;
   bindScrub();
 }
 
@@ -477,7 +482,8 @@ function render(){
  * ============================================================ */
 function saveHealth(d){ try{ localStorage.setItem('patron_health_v1',JSON.stringify(d)); }catch(e){} }
 async function pickSource(src){
-  if(src==='manual'){ openManual(); return; }
+  if(src==='manual'){ selectedSrc='manual'; render(); const el=document.querySelector('.manualCard'); if(el)el.scrollIntoView({behavior:'smooth',block:'center'}); return; }
+  selectedSrc=src;
   if(!ON_SERVER){ alert('Whoop & Apple Watch sync run on the deployed site (Vercel). Open your live dashboard URL to connect them, or use Manual here.'); return; }
   if(src==='whoop'){
     try{ const r=await fetch('/api/whoop/data',{cache:'no-store'}); const j=await r.json();
@@ -498,11 +504,14 @@ function manualSel(id,label,opts,cur){
   return '<div class="f"><label class="fLab" for="'+id+'">'+label+'</label><select id="'+id+'" class="fIn"><option value="">—</option>'
     +opts.map((t,i)=>{ const v=i+1; return '<option value="'+v+'"'+(String(cur)===String(v)?' selected':'')+'>'+v+' · '+t+'</option>'; }).join('')+'</select></div>';
 }
-function openManual(){
-  const h=(health()&&health().source==='manual')?health():{};
-  const g=k=>(h&&h[k]!=null?h[k]:'');
-  const html='<div class="overlay" id="ov"><div class="modal"><div class="modalHead"><h2 class="modalTitle">How you feel</h2><button class="modalClose" id="mClose">×</button></div>'
-    +'<p class="fNote">No band needed. Rate your morning and we turn it into a readiness score — based on athlete self-report research (sleep, soreness, stress &amp; energy track recovery well).</p>'
+/* Inline "Daily check-in" card — the things you update each day live right on the page. */
+function manualCard(h){
+  const hh=(h&&h.source==='manual')?h:{};
+  const g=k=>(hh&&hh[k]!=null?hh[k]:'');
+  const saved=(h&&h.source==='manual'&&h.ts)?'<span class="srcLab" style="margin:0">Saved '+timeAgo(h.ts)+'</span>':'';
+  return '<div class="card manualCard"><div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap"><p class="todayEyebrow" style="margin:0">Daily check-in</p>'+saved+'</div>'
+    +'<h2 class="todayHead" style="font-size:22px;margin:10px 0 6px">How you feel today</h2>'
+    +'<p class="todaySub" style="margin-bottom:18px">Update what changed since yesterday — your <b style="color:var(--accent2)">sleep</b>, <b style="color:var(--accent2)">bed &amp; wake times</b>, and a quick morning rating. No band needed.</p>'
     +'<div class="fGrid">'
     +manualSel('m-sq','Sleep quality',['Terrible','Poor','OK','Good','Great'],g('sleepQ'))
     +manualSel('m-en','Energy',['Drained','Low','OK','Good','Buzzing'],g('energy'))
@@ -514,13 +523,9 @@ function openManual(){
     +'<div class="f"><label class="fLab" for="m-wake">Wake time</label><input id="m-wake" class="fIn" type="time" value="'+esc(g('wakeTime'))+'"></div>'
     +'<div class="f"><label class="fLab" for="m-rhr">Resting pulse</label><input id="m-rhr" class="fIn" type="number" min="20" max="150" placeholder="optional" value="'+esc(g('rhr'))+'"></div>'
     +'</div>'
-    +'<button class="primary" id="mSave">Save readiness</button></div></div>';
-  document.getElementById('modalRoot').innerHTML=html;
-  document.getElementById('mClose').onclick=closeModal;
-  document.getElementById('ov').onclick=e=>{ if(e.target.id==='ov')closeModal(); };
-  document.getElementById('mSave').onclick=saveManual;
+    +'<button class="primary" id="mSave">Save today’s readiness</button></div>';
 }
-function closeModal(){ document.getElementById('modalRoot').innerHTML=''; }
+function timeAgo(ts){ const m=Math.max(0,Math.round((Date.now()-ts)/60000)); if(m<1)return 'just now'; if(m<60)return m+'m ago'; const hh=Math.round(m/60); if(hh<24)return hh+'h ago'; return Math.round(hh/24)+'d ago'; }
 function saveManual(){
   const num=id=>{ const el=document.getElementById(id); if(!el||el.value==='')return null; const n=Number(el.value); return isFinite(n)?n:null; };
   const str=id=>{ const el=document.getElementById(id); return el&&el.value?el.value:null; };
@@ -535,11 +540,12 @@ function saveManual(){
   if(readiness==null&&sleepHours==null&&rhr==null){ alert('Rate at least how you feel — or enter sleep / bed + wake times.'); return; }
   const sleepPerf=sleepHours!=null?Math.round(Math.min(100,sleepHours/target*100)):null;
   saveHealth({source:'manual',connected:true,ts:Date.now(),recovery:readiness,subjective:readiness!=null,sleepQ,energy,mood,soreness,stress,sleepHours,sleepPerf,sleepTargetHours:target,bedtime,wakeTime,hrv:null,rhr,strain:null});
-  closeModal(); render();
+  selectedSrc='manual'; render();
 }
 
 /* events */
 document.addEventListener('click',e=>{
+  if(e.target.closest('#mSave')){ saveManual(); return; }
   const s=e.target.closest('[data-src]'); if(s){ pickSource(s.dataset.src); return; }
   const c=e.target.closest('[data-chart]'); if(c){ chartType=c.dataset.chart; render(); return; }
   if(e.target.closest('#whyLink')){ whyOpen=!whyOpen; const b=document.getElementById('whyBox'); if(b)b.classList.toggle('on',whyOpen); return; }
