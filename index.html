@@ -421,7 +421,26 @@ function estRecovery(h){
   let s = 0; for (let i = 0; i < parts.length; i++) s += parts[i] * w[i];
   return Math.max(1, Math.min(99, Math.round(s / sw)));
 }
-function isEstRecovery(h){ return !!(h && h.recovery == null && estRecovery(h) != null); }
+/* Subjective readiness (1–99) from morning self-ratings (1–5 each) — no band needed.
+ * Modelled on athlete self-report tools (Hooper Index): sleep quality, energy,
+ * soreness, stress, mood. Soreness & stress are "higher = worse" so they invert. */
+function subjReadiness(s){
+  if (!s) return null;
+  const up = (v) => (v - 1) / 4 * 100;    // higher = better
+  const down = (v) => (5 - v) / 4 * 100;  // higher = worse
+  const parts = [], w = [];
+  if (s.sleepQ)  { parts.push(up(s.sleepQ));    w.push(0.30); }
+  if (s.energy)  { parts.push(up(s.energy));    w.push(0.25); }
+  if (s.soreness){ parts.push(down(s.soreness));w.push(0.20); }
+  if (s.stress)  { parts.push(down(s.stress));  w.push(0.15); }
+  if (s.mood)    { parts.push(up(s.mood));       w.push(0.10); }
+  if (!parts.length) return null;
+  const sw = w.reduce((a, b) => a + b, 0);
+  let x = 0; for (let i = 0; i < parts.length; i++) x += parts[i] * w[i];
+  return Math.max(1, Math.min(99, Math.round(x / sw)));
+}
+// "est" badge shows for device estimates AND subjective (typed-in) readiness.
+function isEstRecovery(h){ return !!(h && (h.subjective || (h.recovery == null && estRecovery(h) != null))); }
 function formatHM(h){ if (h == null) return '—'; const hh = Math.floor(h); const mm = Math.round((h - hh) * 60); return hh + 'h ' + String(mm).padStart(2,'0') + 'm'; }
 function formatClock(t){ if (!t) return '—'; const [h, m] = String(t).split(':').map(Number); if (!isFinite(h)) return esc(t); const ap = h < 12 ? 'am' : 'pm'; const h12 = h % 12 === 0 ? 12 : h % 12; return h12 + ':' + String(m || 0).padStart(2,'0') + ap; }
 function ago(ts){ if (!ts) return ''; const m = Math.max(0, Math.round((Date.now() - ts) / 60000)); if (m < 1) return 'just now'; if (m < 60) return m + 'm ago'; return Math.round(m / 60) + 'h ago'; }
@@ -622,6 +641,37 @@ function render(){
   renderModal();
 }
 
+/* ---- Manual (no-band) self-report form: 1–5 ratings → readiness score ---- */
+function manualSel(id, label, opts, cur){
+  return '<div class="field"><label class="fieldLabel" for="' + id + '">' + label + '</label>'
+    + '<select id="' + id + '" class="fieldInput">'
+    + '<option value="">—</option>'
+    + opts.map((t, i) => { const val = i + 1; return '<option value="' + val + '"' + (String(cur) === String(val) ? ' selected' : '') + '>' + val + ' · ' + t + '</option>'; }).join('')
+    + '</select></div>';
+}
+function manualFormHtml(h){
+  const g = (k) => (h && h[k] != null ? h[k] : '');
+  const subj = '<div class="fieldGrid">'
+    + manualSel('f-sq', 'Sleep quality', ['Terrible','Poor','OK','Good','Great'], g('sleepQ'))
+    + manualSel('f-en', 'Energy',        ['Drained','Low','OK','Good','Buzzing'], g('energy'))
+    + manualSel('f-mo', 'Mood',          ['Low','Meh','OK','Good','Great'], g('mood'))
+    + manualSel('f-so', 'Muscle soreness',['None','Mild','Some','Sore','Wrecked'], g('soreness'))
+    + manualSel('f-st', 'Stress',        ['Calm','Low','OK','High','Frazzled'], g('stress'))
+    + '</div>';
+  const measured = '<div class="fieldGrid">'
+    + '<div class="field"><label class="fieldLabel" for="f-sleep">Sleep (hours)</label><input id="f-sleep" class="fieldInput" type="number" min="0" max="24" step="0.1" inputmode="decimal" placeholder="7.5" value="' + esc(g('sleepHours')) + '" /></div>'
+    + '<div class="field"><label class="fieldLabel" for="f-rhr">Resting pulse (bpm)</label><input id="f-rhr" class="fieldInput" type="number" min="20" max="150" inputmode="numeric" placeholder="optional" value="' + esc(g('rhr')) + '" /></div>'
+    + '<div class="field"><label class="fieldLabel" for="f-bed">Bedtime</label><input id="f-bed" class="fieldInput" type="time" value="' + esc(g('bedtime')) + '" /></div>'
+    + '<div class="field"><label class="fieldLabel" for="f-wake">Wake time</label><input id="f-wake" class="fieldInput" type="time" value="' + esc(g('wakeTime')) + '" /></div>'
+    + '<div class="field fieldFull"><label class="fieldLabel" for="f-target">Sleep target (hours)</label><input id="f-target" class="fieldInput" type="number" min="4" max="12" step="0.5" inputmode="decimal" placeholder="8" value="' + esc(h && h.sleepTargetHours != null ? h.sleepTargetHours : 8) + '" /></div>'
+    + '</div>';
+  return '<div class="howto"><div class="howtoTitle">✍️ How you feel this morning</div>'
+    + '<p class="howtoFoot">No band needed. Rate these and we turn them into a daily <strong>readiness score (1–99)</strong> — based on athlete self-report research, where sleep, soreness, stress &amp; energy track recovery well.</p></div>'
+    + subj
+    + '<p class="howtoFoot" style="margin:var(--space-3) 0 var(--space-2)">Optional — sleep, and a pulse you count for 30s × 2 on waking, sharpen the score:</p>'
+    + measured;
+}
+
 /* ============================================================
  * Vitals modal
  * ============================================================ */
@@ -655,8 +705,15 @@ function renderModal(){
       bodyHtml = '<p class="panelNote">Connect your Fitbit account once — sleep, HRV, resting HR &amp; bed/wake times then sync automatically. You log in on fitbit.com; your tokens stay server-side. (Fitbit has no recovery score, so that ring stays blank.)</p>'
         + '<div class="srcActions"><a class="btn btn-primary" href="/api/fitbit/login">Connect Fitbit</a></div>';
     }
-  } else {
-    bodyHtml = '<div class="fieldGrid">'
+  } else if (src === 'apple') {
+    bodyHtml = '<div class="howto"><div class="howtoTitle">⌚ Got an Apple Watch? Here’s the 20-second way</div>'
+      + '<ol class="howtoSteps">'
+      + '<li>Open the <strong>Health</strong> app on your iPhone.</li>'
+      + '<li>Tap <strong>Sleep</strong> and note today’s <strong>bedtime</strong> &amp; <strong>wake time</strong>, then these three numbers:<div class="howtoChips"><span class="howtoChip">Heart Rate Variability</span><span class="howtoChip">Resting Heart Rate</span><span class="howtoChip">Time Asleep</span></div></li>'
+      + '<li>Type them into the fields below and hit <strong>Save vitals</strong>.</li>'
+      + '</ol>'
+      + '<p class="howtoFoot">Apple won’t let a website read Health data directly, so this quick copy keeps it private — nothing leaves your phone. Saved as “Apple Watch.”</p></div>'
+      + '<div class="fieldGrid">'
       + '<div class="field"><label class="fieldLabel" for="f-rec">Recovery / readiness %</label><input id="f-rec" class="fieldInput" type="number" min="0" max="100" inputmode="numeric" placeholder="—" value="' + esc(v('recovery')) + '" /></div>'
       + '<div class="field"><label class="fieldLabel" for="f-sleep">Sleep (hours)</label><input id="f-sleep" class="fieldInput" type="number" min="0" max="24" step="0.1" inputmode="decimal" placeholder="7.5" value="' + esc(v('sleepHours')) + '" /></div>'
       + '<div class="field"><label class="fieldLabel" for="f-bed">Bedtime</label><input id="f-bed" class="fieldInput" type="time" value="' + esc(v('bedtime')) + '" /></div>'
@@ -666,15 +723,9 @@ function renderModal(){
       + '<div class="field fieldFull"><label class="fieldLabel" for="f-target">Sleep target (hours)</label><input id="f-target" class="fieldInput" type="number" min="4" max="12" step="0.5" inputmode="decimal" placeholder="8" value="' + esc(h && h.sleepTargetHours != null ? h.sleepTargetHours : 8) + '" /></div>'
       + '</div>'
       + '<p class="howtoFoot" style="margin-top:var(--space-3)">Fill <strong>Bedtime</strong> + <strong>Wake time</strong> and we’ll work out hours asleep for you — or just type the hours directly.</p>';
-    if (src === 'apple') bodyHtml = '<div class="howto"><div class="howtoTitle">⌚ Got an Apple Watch? Here’s the 20-second way</div>'
-      + '<ol class="howtoSteps">'
-      + '<li>Open the <strong>Health</strong> app on your iPhone.</li>'
-      + '<li>Tap <strong>Sleep</strong> and note today’s <strong>bedtime</strong> &amp; <strong>wake time</strong>, then these three numbers:<div class="howtoChips"><span class="howtoChip">Heart Rate Variability</span><span class="howtoChip">Resting Heart Rate</span><span class="howtoChip">Time Asleep</span></div></li>'
-      + '<li>Type them into the fields below and hit <strong>Save vitals</strong>.</li>'
-      + '</ol>'
-      + '<p class="howtoFoot">Apple won’t let a website read Health data directly, so this quick copy keeps it private — nothing leaves your phone. Saved as “Apple Watch.”</p></div>'
-      + bodyHtml;
-    else bodyHtml += '<p class="panelNote">Enter whatever you track. Recovery and sleep are what drive the supplement recommendations — the rest is optional.</p>';
+  } else {
+    // Manual: no-band subjective self-report → readiness score
+    bodyHtml = manualFormHtml(h);
   }
   const canClear = !!health;
   root.innerHTML = '<div class="overlay" data-action="close-vitals"><div class="panel" data-stop="1">'
@@ -696,6 +747,34 @@ function openVitals(){
 function saveVitals(){
   const num = (id) => { const el = document.getElementById(id); if (!el || el.value === '') return null; const n = Number(el.value); return isFinite(n) ? n : null; };
   const str = (id) => { const el = document.getElementById(id); return el && el.value ? el.value : null; };
+
+  // ---- Manual self-report (no band): ratings → readiness score ----
+  if (ui.draftSource === 'manual') {
+    const rate = (id) => { const n = num(id); return (n != null && n >= 1 && n <= 5) ? n : null; };
+    const sleepQ = rate('f-sq'), energy = rate('f-en'), mood = rate('f-mo'), soreness = rate('f-so'), stress = rate('f-st');
+    const bedtime = str('f-bed'), wakeTime = str('f-wake');
+    let sleepHours = num('f-sleep');
+    if (sleepHours == null && bedtime && wakeTime) {
+      const [bh, bm] = bedtime.split(':').map(Number);
+      const [wh, wm] = wakeTime.split(':').map(Number);
+      let mins = (wh * 60 + wm) - (bh * 60 + bm);
+      if (mins <= 0) mins += 24 * 60;
+      sleepHours = Math.round((mins / 60) * 10) / 10;
+    }
+    const rhr = num('f-rhr');
+    const target = num('f-target') || 8;
+    const readiness = subjReadiness({ sleepQ, energy, mood, soreness, stress });
+    if (readiness == null && sleepHours == null && rhr == null) { alert('Rate at least how you feel — or enter sleep / bed + wake times.'); return; }
+    const sleepPerf = sleepHours != null ? Math.round(Math.min(100, (sleepHours / target) * 100)) : null;
+    health = { source: 'manual', connected: true, ts: Date.now(), recovery: readiness, subjective: readiness != null,
+      sleepQ, energy, mood, soreness, stress,
+      sleepHours, sleepPerf, sleepTargetHours: target, bedtime, wakeTime, hrv: null, rhr, strain: null };
+    saveHealth(health);
+    ui.modalOpen = false;
+    render();
+    return;
+  }
+
   const recovery = num('f-rec');
   const bedtime = str('f-bed');
   const wakeTime = str('f-wake');
