@@ -38,7 +38,9 @@ function clearCookie(name, secure) {
 }
 
 function creds() {
-  const id = process.env.FITBIT_CLIENT_ID, secret = process.env.FITBIT_CLIENT_SECRET;
+  // .trim() guards against stray spaces / newlines pasted into the Vercel env var,
+  // which otherwise produce a Fitbit "invalid_client" error.
+  const id = (process.env.FITBIT_CLIENT_ID || '').trim(), secret = (process.env.FITBIT_CLIENT_SECRET || '').trim();
   if (!id || !secret) { const e = new Error('FITBIT_NOT_CONFIGURED'); e.code = 'FITBIT_NOT_CONFIGURED'; throw e; }
   return { id, secret };
 }
