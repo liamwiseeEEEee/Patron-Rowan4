@@ -311,8 +311,20 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
  * ============================================================ */
 function readLS(k){ try{ const r=localStorage.getItem(k); return r?JSON.parse(r):null; }catch(e){ return null; } }
 // per-render caches (the energy curve reads these hundreds of times) — cleared at the top of render()
-let _hl,_prof,_stim,_feelC,_med;
-function clearCaches(){ _hl=undefined; _prof=undefined; _stim=undefined; _feelC=undefined; _med=undefined; }
+let _hl,_prof,_stim,_feelC,_med,_recHist,_hrvB,_rhrB,_sdebt,_smoker,_hab,_chrono;
+function clearCaches(){ _hl=_prof=_stim=_feelC=_med=_recHist=_hrvB=_rhrB=_sdebt=_smoker=_hab=_chrono=undefined; }
+
+/* ---- personalization from existing suite data (baselines, debt, habits, chronotype) ---- */
+function recoveryHistory(){ if(_recHist!==undefined)return _recHist; const r=readLS('recovery_standalone_v1'); _recHist=(r&&Array.isArray(r.history))?r.history:[]; return _recHist; }
+function peakDays(){ return (readLS('peak_log_v1')||{days:{}}).days||{}; }
+function hrvBaseline(){ if(_hrvB!==undefined)return _hrvB; const v=recoveryHistory().slice(-30).map(d=>d.hrv).filter(x=>typeof x==='number'); _hrvB=v.length>=5?(v.reduce((a,b)=>a+b,0)/v.length):null; return _hrvB; }
+function rhrBaseline(){ if(_rhrB!==undefined)return _rhrB; const v=[]; recoveryHistory().slice(-30).forEach(d=>{ if(typeof d.rhr==='number')v.push(d.rhr); }); const pl=peakDays(); Object.keys(pl).forEach(k=>{ if(typeof pl[k].rhr==='number')v.push(pl[k].rhr); }); _rhrB=v.length>=5?(v.reduce((a,b)=>a+b,0)/v.length):null; return _rhrB; }
+function sleepHistory(){ const map={}; recoveryHistory().forEach(d=>{ if(typeof d.sleepHours==='number')map[d.dateKey]=d.sleepHours; }); const pl=peakDays(); Object.keys(pl).forEach(k=>{ if(typeof pl[k].sleepHours==='number')map[k]=pl[k].sleepHours; }); return Object.keys(map).sort().map(k=>({k,h:map[k]})); }
+function sleepDebt(){ if(_sdebt!==undefined)return _sdebt; const target=(health()&&health().sleepTargetHours)||8; let d=0; sleepHistory().slice(-5).forEach(o=>{ d+=Math.max(0,target-o.h); }); _sdebt=d; return _sdebt; }
+function isSmoker(){ if(_smoker!==undefined)return _smoker; const cutoff=Date.now()-2*86400000; _smoker=medLogs().some(l=>l.cat==='nic'&&l.t>=cutoff); return _smoker; }
+function habitualCaffeine(){ if(_hab!==undefined)return _hab; const p=profile(); if(p&&typeof p.caffeineMgPerDay==='number'&&p.caffeineMgPerDay>0){ _hab=p.caffeineMgPerDay; return _hab; } const cutoff=Date.now()-14*86400000; const days={}; stimLogs().forEach(l=>{ if(l.t>=cutoff){ const k=dayKey(new Date(l.t)); days[k]=(days[k]||0)+(+l.mg||0); } }); const vals=Object.values(days); _hab=vals.length?(vals.reduce((a,b)=>a+b,0)/vals.length):null; return _hab; }
+function caffSensitivity(){ const hab=habitualCaffeine(); if(hab==null)return 1; return clamp(1-(hab-100)/700,0.55,1); }
+function histWakeBed(){ if(_chrono!==undefined)return _chrono; const pl=peakDays(); const ws=[],bs=[]; Object.values(pl).forEach(d=>{ if(d.wakeTime){const v=parseHM(d.wakeTime); if(v!=null)ws.push(v);} if(d.bedtime){const v=parseHM(d.bedtime); if(v!=null)bs.push(v);} }); const avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null; _chrono={wake:avg(ws),bed:avg(bs)}; return _chrono; }
 function health(){ if(_hl!==undefined)return _hl; const d=readLS('patron_health_v1'); _hl=(d&&d.connected)?d:null; return _hl; }
 function profile(){ if(_prof!==undefined)return _prof; _prof=readLS('patron_profile_v1'); return _prof; }
 function clamp(x,a,b){ return Math.max(a,Math.min(b,x)); }
@@ -325,8 +337,16 @@ function estRecovery(h){
   if(!h) return null;
   if(h.recovery!=null) return h.recovery;
   const parts=[],w=[];
-  if(typeof h.hrv==='number'){ parts.push(clamp01((h.hrv-20)/(90-20))*100); w.push(0.5); }
-  if(typeof h.rhr==='number'){ parts.push(clamp01((80-h.rhr)/(80-42))*100); w.push(0.25); }
+  const hb=hrvBaseline(), rb=rhrBaseline();
+  if(typeof h.hrv==='number'){
+    // vs YOUR baseline when we have history; else population anchor
+    const s = hb ? clamp(50+((h.hrv/hb)-1)*200,5,99) : clamp01((h.hrv-20)/(90-20))*100;
+    parts.push(s); w.push(0.5);
+  }
+  if(typeof h.rhr==='number'){
+    const s = rb ? clamp(50+(1-(h.rhr/rb))*300,5,99) : clamp01((80-h.rhr)/(80-42))*100;
+    parts.push(s); w.push(0.25);
+  }
   if(typeof h.sleepPerf==='number'){ parts.push(Math.min(100,h.sleepPerf)); w.push(0.25); }
   else if(typeof h.sleepHours==='number'){ parts.push(clamp01(h.sleepHours/(h.sleepTargetHours||8))*100); w.push(0.25); }
   if(!parts.length) return null;
@@ -351,7 +371,7 @@ function subjReadiness(s){
 
 /* ---- caffeine pharmacokinetics (same model as the Stimulant tracker) ---- */
 const KA=4.0;
-function halfLifeH(){ const p=profile(); let hl=5; if(p){ if(p.sex==='female')hl+=0.5; if(typeof p.age==='number'&&p.age>=50)hl+=0.7; } return hl; }
+function halfLifeH(){ const p=profile(); let hl=5; if(p){ if(p.sex==='female')hl+=0.5; if(typeof p.age==='number'&&p.age>=50)hl+=0.7; } if(isSmoker())hl*=0.65; return hl; }
 function ke(){ return Math.LN2/halfLifeH(); }
 function doseAmount(mg,h){ if(h<0)return 0; const k=ke(); if(Math.abs(KA-k)<1e-9)return 0; const a=mg*KA/(KA-k)*(Math.exp(-k*h)-Math.exp(-KA*h)); return Math.max(0,a); }
 function stimLogs(){ if(_stim!==undefined)return _stim; const s=readLS('stimulant_standalone_v1'); _stim=(s&&Array.isArray(s.logs))?s.logs:[]; return _stim; }
@@ -494,7 +514,9 @@ function profileStats(){ const p=profile()||{}; const out=[]; const imperial=p.u
 
 /* ---- times ---- */
 function parseHM(s){ if(!s)return null; const m=String(s).match(/(\d{1,2}):(\d{2})/); if(!m)return null; return (+m[1])+(+m[2])/60; }
-function wakeBed(){ const h=health(); let wake=parseHM(h&&h.wakeTime), bed=parseHM(h&&h.bedtime); if(wake==null)wake=7; if(bed==null)bed=23; return {wake,bed}; }
+function wakeBed(){ const h=health(); let wake=parseHM(h&&h.wakeTime), bed=parseHM(h&&h.bedtime);
+  if(wake==null||bed==null){ const hw=histWakeBed(); if(wake==null)wake=hw.wake; if(bed==null)bed=hw.bed; } // your real chronotype
+  if(wake==null)wake=7; if(bed==null)bed=23; return {wake,bed}; }
 function clockOf(t){ t=((t%24)+24)%24; let hh=Math.floor(t); const mm=Math.round((t-hh)*60); let m2=mm; if(m2===60){hh+=1;m2=0;} const ap=hh<12?'AM':'PM'; let h12=hh%12; if(h12===0)h12=12; return h12+(m2?':'+String(m2).padStart(2,'0'):'')+' '+ap; }
 function nowT(){ const d=new Date(); return d.getHours()+d.getMinutes()/60; }
 function tToMs(t){ const d=new Date(); d.setHours(0,0,0,0); return d.getTime()+t*3600000; }
@@ -540,6 +562,10 @@ function feelDays(){ const f=loadFeel(); const set={}; f.checks.forEach(c=>{ set
 // Personal calibration: average gap between how you FELT and what we PREDICTED,
 // applied gradually — full strength only after ~30 days of check-ins.
 function personalBias(){ const f=loadFeel(); if(f.checks.length<3)return 0; let s=0,n=0; f.checks.forEach(c=>{ if(typeof c.pred==='number'&&typeof c.pct==='number'){ s+=(c.pct-c.pred); n++; } }); if(!n)return 0; return clamp(s/n,-25,25); }
+// time-of-day calibration: learns that YOUR morning/afternoon/evening differs from the model
+function feelBucket(hr){ hr=((hr%24)+24)%24; return hr<12?'m':hr<17?'a':'e'; }
+function personalBiasAt(t){ const f=loadFeel(); if(f.checks.length<3)return personalBias(); const b=feelBucket(t); let s=0,n=0; f.checks.forEach(c=>{ if(typeof c.pred==='number'&&typeof c.pct==='number'&&feelBucket(new Date(c.t).getHours())===b){ s+=(c.pct-c.pred); n++; } }); return n>=2?clamp(s/n,-25,25):personalBias(); }
+function personalAdjAt(t){ return personalBiasAt(t)*calibStrength(); }
 function calibStrength(){ return Math.min(1, feelDays()/30); }
 function personalAdj(){ return personalBias()*calibStrength(); }
 function toneOf(v){ if(v==null)return {c:'var(--muted)',word:'—'}; if(v>=80)return {c:'var(--accent)',word:'Prime'}; if(v>=67)return {c:'var(--accent)',word:'Solid'}; if(v>=45)return {c:'var(--warn)',word:'Moderate'}; if(v>=30)return {c:'var(--warn)',word:'Low'}; return {c:'var(--low)',word:'Depleted'}; }
@@ -547,7 +573,7 @@ function toneOf(v){ if(v==null)return {c:'var(--muted)',word:'—'}; if(v>=80)re
 /* ---- energy curve model ----
  * Two circadian peaks (morning ~3h after wake, evening ~3h before bed),
  * amplitude scaled by recovery, plus a caffeine boost from the PK model. */
-function recScale(){ const rec=estRecovery(health()); const r=rec==null?70:rec; return 0.58+0.42*(r/100); }
+function recScale(){ const rec=estRecovery(health()); const r=rec==null?70:rec; let s=0.58+0.42*(r/100); s*=(1-clamp(sleepDebt()*0.025,0,0.18)); return s; } // multi-day sleep debt lowers the ceiling
 /* Physiologically-grounded circadian arousal (0..~0.9):
  * sleep inertia after waking → broad daytime plateau → a SHALLOW post-lunch dip
  * (~45% through your waking day) → an evening second-wind → wind-down before bed →
@@ -572,7 +598,7 @@ function shape(t,wake,bed){
 function caffNet(t){
   const cur=bodyAt(tToMs(t));
   let mx=cur; for(let dt=0.5; dt<=5; dt+=0.5){ const b=bodyAt(tToMs(t-dt)); if(b>mx)mx=b; }
-  const boost=Math.min(22, cur*0.14);
+  const boost=Math.min(22, cur*0.14*caffSensitivity()); // tolerance: habitual users get less lift
   const rebound=Math.min(13, Math.max(0, mx-cur)*0.10);
   return boost-rebound;
 }
@@ -580,7 +606,7 @@ function caffNet(t){
 function energyRaw(t){ const {wake,bed}=wakeBed(); const rs=recScale(); const base=clamp(shape(t,wake,bed)*100*rs,1,100); return clamp(base+caffNet(t)+medNet(t),1,100); }
 function energyAt(t){
   const {wake,bed}=wakeBed(); const rs=recScale();
-  const base=clamp(shape(t,wake,bed)*100*rs+personalAdj(),1,100);
+  const base=clamp(shape(t,wake,bed)*100*rs+personalAdjAt(t),1,100); // time-of-day personal calibration
   const sub=caffNet(t)+medNet(t);   // caffeine + meds/substances, with their comedowns
   return { base, caf:sub, e:clamp(base+sub,1,100) };
 }
@@ -812,8 +838,9 @@ function infoCardHtml(){
   return '<div class="infoCard"><span class="infoTag">Estimate · learns over 30 days</span>'
     +'<p>Peak is a <b>science-based estimate from your own data</b> — not a medical measurement.</p>'
     +'<h4>Real inputs</h4><p>Your Whoop / Apple Watch / manual vitals, the caffeine + meds/substances you log, supplements (auto-read from that tracker), water, protein, gym, and your weight/age/sex.</p>'
-    +'<h4>The model</h4><p>Energy curve = circadian rhythm (two-process sleep model) × your recovery, plus pharmacokinetics for caffeine <b>and any med/substance you log</b> (each with its own onset→peak→wear-off + comedown). Recovery from HRV + resting HR + sleep; manual readiness uses the Hooper self-report index. Meds are modeled for information only.</p>'
-    +'<h4>Learns you</h4><p>Your “how I feel” checks correct the model toward how you actually feel — gradually, reaching full strength after ~30 days. <b>'+days+'/30 days</b> in so far.</p></div>';
+    +'<h4>The model</h4><p>Energy curve = circadian rhythm (two-process sleep model) × your recovery, plus pharmacokinetics for caffeine <b>and any med/substance you log</b> (each with onset→peak→wear-off + comedown). Recovery scores HRV + resting HR against <b>your own rolling baseline</b> (not population averages); manual readiness uses the Hooper index.</p>'
+    +'<h4>Tuned to you</h4><p>It already adapts from your suite data: <b>your HRV/RHR baselines</b>, <b>multi-day sleep debt</b>, your <b>chronotype</b> (real wake/bed times), caffeine <b>tolerance</b> from habitual intake, and faster caffeine clearance if you log nicotine.</p>'
+    +'<h4>Learns you</h4><p>Your “how I feel” checks correct the curve toward how you actually feel — <b>by time of day</b> (your mornings vs afternoons), gradually reaching full strength after ~30 days. <b>'+days+'/30 days</b> in so far.</p></div>';
 }
 
 /* ---- per-day manual log (history for the day cards) ---- */
