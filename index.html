@@ -335,9 +335,7 @@ const APPS = [
   { file: 'peak-demo.html',   name: 'Peak Demo',   tag: 'Backtested copy — verified working',     icon: '🔆', wide: true },
   { file: 'finance.html',     name: 'Finance',     tag: 'Net worth · subs · orders · wishlist', icon: '💰', wide: true },
   { file: 'gym.html',         name: 'Gym',         tag: 'Progressive overload coach',           icon: '🏋️', wide: true },
-  { file: 'supplements.html', name: 'Supplements', tag: 'Your stack + smart recommendations',   icon: '💊' },
-  { file: 'stimulant.html',   name: 'Stimulants',  tag: 'Caffeine · peak & crash timing',        icon: '☕' },
-  { file: 'meds.html',        name: 'Meds',        tag: 'Doses · peak & comedown timing',         icon: '💊' },
+  { file: 'enhancers.html',   name: 'Enhancers',   tag: 'Supplements · stimulants · meds',       icon: '💊', wide: true },
   { file: 'whoop.html',       name: 'Fitness Band', tag: 'Whoop · Fitbit · Apple Watch sync',      icon: '🔋' },
   { file: 'recovery.html',    name: 'Recovery',    tag: 'Readiness · sleep · trends',            icon: '🔄' },
   { file: 'water.html',       name: 'Water',       tag: 'Daily hydration target',                icon: '💧' },
@@ -571,6 +569,7 @@ function statFor(file){
   try {
     if (file === 'finance.html') { const s = lsGet('finance_standalone_v1'); if (s && Array.isArray(s.accounts) && s.accounts.length) { const nw = s.accounts.reduce((a,x)=>a+(Number(x.amountCHF)||0),0); return { value: 'CHF ' + fmtNum(nw), label: 'net worth' }; } }
     else if (file === 'supplements.html') { const s = lsGet('supplements_standalone_v1'); if (s && Array.isArray(s.items) && s.items.length) { const tk = (s.taken && s.taken[activeDateKey()]) || {}; const n = s.items.filter(i => tk[i.id]).length; return { value: n + '/' + s.items.length, label: 'taken today' }; } }
+    else if (file === 'enhancers.html') { const s = lsGet('supplements_standalone_v1'); if (s && Array.isArray(s.items) && s.items.length) { const tk = (s.taken && s.taken[activeDateKey()]) || {}; const n = s.items.filter(i => tk[i.id]).length; return { value: n + '/' + s.items.length, label: 'supplements today' }; } const c = lsGet('stimulant_standalone_v1'); if (c && Array.isArray(c.logs)) { const k = localDateKey(); const mg = c.logs.filter(l => l && localDateKey(new Date(l.t)) === k).reduce((a,l)=>a+(Number(l.mg)||0),0); if (mg>0) return { value: mg + ' mg', label: 'caffeine today' }; } }
     else if (file === 'water.html') { const s = lsGet('water_standalone_v1'); if (s && s.logs) { const n = s.logs[localDateKey()] || 0; return { value: String(n), label: (n === 1 ? 'drink' : 'drinks') + ' today' }; } }
     else if (file === 'stimulant.html') { const s = lsGet('stimulant_standalone_v1'); if (s && Array.isArray(s.logs)) { const k = localDateKey(); const mg = s.logs.filter(l => l && localDateKey(new Date(l.t)) === k).reduce((a,l)=>a+(Number(l.mg)||0),0); if (mg>0) return { value: mg + ' mg', label: 'caffeine today' }; } }
     else if (file === 'whoop.html') { const rec = estRecovery(health); if (rec != null) return { value: Math.round(rec) + '%', label: isEstRecovery(health) ? 'recovery · est' : 'recovery' }; }
@@ -594,6 +593,7 @@ const ART = {
   'peak.html':'linear-gradient(135deg,#34D399,#22D3EE)',
   'peak-demo.html':'linear-gradient(135deg,#34D399,#22D3EE)',
   'meds.html':'linear-gradient(135deg,#34D399,#22D3EE)',
+  'enhancers.html':'linear-gradient(135deg,#6EE7B7,#22D3EE)',
 };
 function artFor(file){ return ART[file] || 'linear-gradient(135deg,#8B5CF6,#22D3EE)'; }
 /* Animated neon icons live in icons.js (window.DASH_ICONS), keyed by page. */
