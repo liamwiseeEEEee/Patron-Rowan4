@@ -166,7 +166,7 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
 .sleepMarks{ position:absolute; top:0; left:0; right:0; height:0; pointer-events:none; }
 .sleepMark{ position:absolute; top:-6px; transform:translateX(-50%); font-family:var(--mono); font-size:9px; letter-spacing:.04em; color:var(--muted2); white-space:nowrap; background:var(--panel2); border:1px solid var(--line2); border-radius:7px; padding:3px 8px; }
 .taskMarks{ position:absolute; left:0; right:0; top:0; height:0; pointer-events:none; }
-.taskMark{ position:absolute; top:-7px; transform:translateX(-50%); font-family:var(--mono); font-size:9px; letter-spacing:.02em; color:var(--fg); white-space:nowrap; background:var(--panel2); border:1px solid var(--line); border-bottom:2px solid var(--dc); border-radius:6px; padding:3px 8px; max-width:120px; overflow:hidden; text-overflow:ellipsis; }
+.taskMark{ position:absolute; top:-9px; transform:translateX(-50%); font-family:var(--serif); font-style:italic; font-size:13px; letter-spacing:.01em; color:var(--fg); white-space:nowrap; background:var(--panel2); border:1px solid var(--line); border-bottom:2px solid var(--dc); border-radius:8px; padding:3px 10px; max-width:130px; overflow:hidden; text-overflow:ellipsis; box-shadow:0 6px 18px -10px rgba(0,0,0,.9); }
 .crashMarks{ position:absolute; left:0; right:0; bottom:34px; height:0; pointer-events:none; }
 .crashMark{ position:absolute; transform:translateX(-50%); font-family:var(--mono); font-size:9px; letter-spacing:.04em; color:#fca5a5; white-space:nowrap; background:var(--panel2); border:1px solid rgba(239,68,68,.45); border-radius:7px; padding:3px 8px; }
 .sleepPlan{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:11px 15px; margin-bottom:16px; border:1px solid var(--line); border-radius:var(--radius-sm); background:rgba(255,255,255,.02); }
@@ -323,6 +323,14 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
 .schChipTime{ font-family:var(--mono); font-size:10px; color:var(--muted); }
 .schX{ cursor:pointer; color:var(--muted); width:18px; height:18px; border-radius:50%; display:grid; place-items:center; font-size:13px; }
 .schX:hover{ color:var(--low); background:rgba(251,113,133,.12); }
+.schGap{ cursor:pointer; color:var(--muted); width:18px; height:18px; border-radius:50%; display:grid; place-items:center; font-size:12px; }
+.schGap:hover{ color:var(--accent2); background:rgba(110,231,183,.14); }
+.schWorkout{ display:flex; flex-direction:column; gap:8px; }
+.schWoBtn{ appearance:none; cursor:pointer; text-align:left; border:1px solid var(--line2); border-radius:var(--radius-sm); background:rgba(110,231,183,.05); color:var(--accent2); font-family:var(--ui); font-size:13.5px; padding:12px 14px; }
+.schWoBtn:hover{ background:rgba(110,231,183,.1); }
+.schWoOpts{ display:flex; gap:8px; flex-wrap:wrap; }
+.schWoOpt{ appearance:none; cursor:pointer; border:1px solid var(--line); border-radius:var(--pill); background:rgba(255,255,255,.03); color:var(--fg); font-family:var(--mono); font-size:12px; padding:9px 16px; }
+.schWoOpt:hover{ border-color:var(--accent); color:var(--accent2); }
 .schNow{ border:1px solid var(--line); border-radius:var(--radius-sm); background:rgba(255,255,255,.02); padding:16px 18px; }
 .schNowTag{ font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); }
 .schNowLabel{ font-family:var(--serif); font-style:italic; font-size:26px; line-height:1.1; margin:6px 0 2px; }
@@ -692,23 +700,39 @@ function diffOf(s){ if(/\b(hard|intense|deep|heavy|max|pr|grind)\b/i.test(s))ret
 function diffColor(d){ return d==='hard'?'#FF50A6':d==='easy'?'#6EE7B7':'#F59E0B'; }
 function pClock(h,m,ap){ h=+h; m=m?+m:0; if(ap){ ap=ap.toLowerCase(); if(ap[0]==='p'&&h<12)h+=12; if(ap[0]==='a'&&h===12)h=0; } return h+m/60; }
 function parseTask(str){
-  let s=' '+str.trim()+' '; if(!s.trim())return null;
-  const diff=diffOf(s); let start=null,end=null;
+  let s=' '+str.replace(/^\s*gap\b/i,' ').trim()+' '; if(!s.trim())return null;  // "gap …" = auto-place
+  const diff=diffOf(s); let start=null,end=null,durH=null,explicit=false;
   let m=s.match(/(\d{1,2})(?::(\d{2}))?\s*(am|pm)?\s*(?:to|till|until|[-–—])\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
-  if(m){ start=pClock(m[1],m[2],m[3]); end=pClock(m[4],m[5],m[6]||m[3]); if(end<=start)end=(end+12<=24)?end+12:start+1; s=s.replace(m[0],' '); }
+  if(m){ start=pClock(m[1],m[2],m[3]); end=pClock(m[4],m[5],m[6]||m[3]); if(end<=start)end=(end+12<=24)?end+12:start+1; s=s.replace(m[0],' '); explicit=true; durH=end-start; }
   else {
     let comp=s.match(/\b([01]?\d|2[0-3])([0-5]\d)\b/), one=s.match(/\b(\d{1,2})(?::(\d{2}))?\s*(am|pm)\b/i), dur=s.match(/\b(\d+(?:\.\d+)?)\s*(h|hrs?|hours?|m|mins?|minutes?|minuets?)\b/i);
-    if(one){ start=pClock(one[1],one[2],one[3]); s=s.replace(one[0],' '); }
-    else if(comp){ start=(+comp[1])+(+comp[2])/60; s=s.replace(comp[0],' '); }
-    let durH=null; if(dur){ const n=+dur[1]; durH=/^m/i.test(dur[2])?n/60:n; s=s.replace(dur[0],' '); }
-    if(start==null)start=Math.round(nowT()*2)/2;
-    end=start+(durH||1);
+    if(one){ start=pClock(one[1],one[2],one[3]); s=s.replace(one[0],' '); explicit=true; }
+    else if(comp){ start=(+comp[1])+(+comp[2])/60; s=s.replace(comp[0],' '); explicit=true; }
+    if(dur){ const n=+dur[1]; durH=/^m/i.test(dur[2])?n/60:n; s=s.replace(dur[0],' '); }
+    durH=durH||1; if(explicit){ end=start+durH; }
   }
   s=s.replace(/\b(hard|intense|deep|heavy|max|pr|grind|easy|chill|light|admin|rest|relax|recover|medium|med|moderate|at|from)\b/ig,' ').replace(/\s+/g,' ').trim();
-  start=((start%24)+24)%24; end=Math.max(start+0.25,Math.min(24,end));
-  return {id:'k_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),label:(s||'Task'),start,end,diff};
+  return {id:'k_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),label:(s||'Task'),diff,durH:durH||1,explicit,start,end};
 }
-function addSched(str){ if(!str||!str.trim())return; const tasks=loadSched(); str.split(/,|;|\band\b/i).forEach(p=>{ const t=parseTask(p); if(t)tasks.push(t); }); tasks.sort((a,b)=>a.start-b.start); saveSched(tasks); }
+/* free intervals in the waking day (not in the past), given a task list */
+function freeGaps(list){ const {wake,bed}=wakeBed(); let t=Math.max(wake,nowT()); const gaps=[];
+  list.filter(x=>x.end>t&&x.start<bed).sort((a,b)=>a.start-b.start).forEach(x=>{ if(x.start>t)gaps.push([t,Math.min(x.start,bed)]); t=Math.max(t,x.end); });
+  if(t<bed)gaps.push([t,bed]); return gaps.filter(g=>g[1]-g[0]>=0.25); }
+/* best start for a duration+difficulty: hard→peak energy, easy→low-energy, med→mid */
+function bestSlot(list,durH,diff){ durH=Math.max(0.25,durH||1); let best=null,bestScore=-1e9;
+  freeGaps(list).forEach(g=>{ for(let st=g[0]; st+durH<=g[1]+1e-6; st+=0.25){ let sum=0,n=0; for(let t=st;t<st+durH;t+=0.25){ sum+=energyAt(t).e; n++; } const avg=sum/(n||1);
+    const score = diff==='hard'?avg : diff==='easy'?(100-avg) : (100-Math.abs(avg-65));
+    if(score>bestScore){ bestScore=score; best=st; } } });
+  if(best==null){ const {wake,bed}=wakeBed(); best=list.length?Math.min(bed-durH,Math.max.apply(null,list.map(x=>x.end))):Math.max(wake,nowT()); best=Math.max(wake,best); }
+  return Math.round(best*4)/4;
+}
+function placeTask(p,list){ const st=bestSlot(list,p.durH,p.diff); p.start=st; p.end=Math.min(24,st+p.durH); return p; }
+function addSched(str){ if(!str||!str.trim())return; const tasks=loadSched(); str.split(/,|;|\band\b/i).forEach(pStr=>{ const p=parseTask(pStr); if(!p)return; if(!p.explicit||p.start==null){ placeTask(p,tasks); } else { p.start=((p.start%24)+24)%24; p.end=Math.max(p.start+0.25,Math.min(24,p.end)); } tasks.push(p); }); tasks.sort((a,b)=>a.start-b.start); saveSched(tasks); }
+function regapTask(id){ const tasks=loadSched(); const t=tasks.find(x=>x.id===id); if(!t)return; const others=tasks.filter(x=>x.id!==id); placeTask(t,others); tasks.sort((a,b)=>a.start-b.start); saveSched(tasks); }
+/* workout suggestion from gym history */
+function gymDaysLast7(){ const d=readLS('po_coach_workout_done')||{}; let n=0; for(let i=0;i<7;i++){ const dd=new Date(); dd.setDate(dd.getDate()-i); if(d[dayKey(dd)])n++; } return n; }
+function addWorkout(durH){ const tasks=loadSched(); const p={id:'k_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),label:'Workout',diff:'hard',durH:durH,explicit:false,start:null,end:null}; placeTask(p,tasks); tasks.push(p); tasks.sort((a,b)=>a.start-b.start); saveSched(tasks); }
+let workoutOpen=false;
 function removeSched(id){ saveSched(loadSched().filter(t=>t.id!==id)); }
 function curTask(){ const t=nowT(); return loadSched().find(x=>t>=x.start&&t<x.end)||null; }
 function nextTask(){ const t=nowT(); return loadSched().filter(x=>x.start>t).sort((a,b)=>a.start-b.start)[0]||null; }
@@ -722,13 +746,15 @@ function keyword(label){ return String(label).trim().split(/\s+/).slice(0,2).joi
 function taskMarksHtml(){ const tasks=loadSched(); if(!tasks.length)return ''; return tasks.map(t=>{ const c=(t.start+t.end)/2/24*100; return '<div class="taskMark" style="left:'+clamp(c,7,93)+'%;--dc:'+diffColor(t.diff)+'">'+esc(keyword(t.label))+'</div>'; }).join(''); }
 function scheduleHtml(){
   const tasks=loadSched(), cur=curTask(), nxt=nextTask();
-  const input='<div class="schInputRow"><input id="schInput" class="schInput" placeholder="e.g. deep work 9 to 11 hard, gym 1930, read 30m" autocomplete="off"><button class="schAdd" data-addsched="1">＋ Add</button></div><div class="schHint">task · time · difficulty — green easy · amber medium · pink hard</div>';
-  const row = tasks.length ? '<div class="schRow">'+tasks.map(t=>'<span class="schChip" style="--dc:'+diffColor(t.diff)+'"><b>'+esc(t.label)+'</b><span class="schChipTime">'+clockOf(t.start)+'</span><span class="schX" data-rmsched="'+t.id+'">×</span></span>').join('')+'</div>' : '';
+  const input='<div class="schInputRow"><input id="schInput" class="schInput" placeholder="e.g. deep work 9-11 hard, gym 1930, gap homework 2h" autocomplete="off"><button class="schAdd" data-addsched="1">＋ Add</button></div><div class="schHint">say a time (9-11) or start with “gap” to auto-slot it · easy/medium/hard sets the color &amp; best window</div>';
+  // workout nudge: you've trained recently but not today
+  const wOut = (!gymLoggedToday() && gymDaysLast7()>=1) ? '<div class="schWorkout"><button class="schWoBtn" data-workout="1">🏋️ You’ve been training — work out today?</button>'+(workoutOpen?'<div class="schWoOpts">'+[['45m',0.75],['1h',1],['1h 30m',1.5],['2h',2]].map(o=>'<button class="schWoOpt" data-addworkout="'+o[1]+'">'+o[0]+'</button>').join('')+'</div>':'')+'</div>' : '';
+  const row = tasks.length ? '<div class="schRow">'+tasks.map(t=>'<span class="schChip" style="--dc:'+diffColor(t.diff)+'"><b>'+esc(t.label)+'</b><span class="schChipTime">'+clockOf(t.start)+'</span>'+(!t.explicit?'<span class="schGap" data-gaptask="'+t.id+'" title="Re-slot to best free time">↻</span>':'')+'<span class="schX" data-rmsched="'+t.id+'">×</span></span>').join('')+'</div>' : '';
   let nowBlock;
   if(cur){ nowBlock='<div class="schNow"><div class="schNowTag" style="color:'+diffColor(cur.diff)+'">● Now · running</div><div class="schNowLabel">'+esc(cur.label)+'</div><div class="schNowTime">'+fmtRange(cur.start,cur.end)+'</div><div class="schCount">ends in <b class="cdVal" data-countdown="'+tToMsToday(cur.end)+'"></b></div>'+(nxt?'<div class="schNext"><span class="schNextDot"></span>Up next · <b>'+esc(nxt.label)+'</b> · '+clockOf(nxt.start)+'</div>':'')+'</div>'; }
   else if(nxt){ nowBlock='<div class="schNow"><div class="schNowTag">○ Free time</div><div class="schNowLabel">Free until '+clockOf(nxt.start)+'</div><div class="schCount"><b class="cdVal" data-countdown="'+tToMsToday(nxt.start)+'"></b> until '+esc(nxt.label)+'</div></div>'; }
   else { nowBlock='<div class="schNow"><div class="schNowTag">○ Free time</div><div class="schNowLabel">Nothing scheduled</div><div class="schCount"><b class="cdVal" data-countdown="'+bedCountdownMs()+'"></b> until bedtime</div></div>'; }
-  return '<div class="card schCard">'+input+row+nowBlock+'</div>';
+  return '<div class="card schCard">'+input+wOut+row+nowBlock+'</div>';
 }
 function planLaneHtml(){
   const tasks=loadSched(); const head='<p class="planLabel">Today’s plan</p>';
@@ -1276,6 +1302,9 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#mSave')){ saveManual(); return; }
   if(e.target.closest('[data-addsched]')){ const i=document.getElementById('schInput'); if(i)addSched(i.value); return; }
   const rs=e.target.closest('[data-rmsched]'); if(rs){ removeSched(rs.dataset.rmsched); return; }
+  const gt=e.target.closest('[data-gaptask]'); if(gt){ regapTask(gt.dataset.gaptask); return; }
+  if(e.target.closest('[data-workout]')){ workoutOpen=!workoutOpen; render(); return; }
+  const aw=e.target.closest('[data-addworkout]'); if(aw){ workoutOpen=false; addWorkout(parseFloat(aw.dataset.addworkout)); return; }
   if(e.target.closest('[data-plantoggle]')){ planOpen=!planOpen; render(); return; }
   if(e.target.closest('[data-planadd]')){ const el=document.getElementById('schInput'); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.focus(); } return; }
   const pb=e.target.closest('[data-pulse]'); if(pb){ startPulse(parseInt(pb.dataset.pulse,10)||30); return; }
