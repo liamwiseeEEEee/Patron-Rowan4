@@ -303,9 +303,9 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
 .cafAddName{ flex:1; min-width:120px; }
 .cafAddMg{ width:84px; }
 .cafAddBtn{ appearance:none; cursor:pointer; padding:0 18px; border:0; border-radius:10px; font-family:var(--mono); font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:#04130c; background:var(--accent); }
-.glowStar{ position:fixed; width:22px; height:22px; z-index:0; pointer-events:none; filter:drop-shadow(0 0 8px var(--accent)) drop-shadow(0 0 18px rgba(110,231,183,.5)); animation:starSpin 8s linear infinite; }
+.glowStar{ position:fixed; width:30px; height:30px; z-index:40; pointer-events:none; filter:drop-shadow(0 0 8px var(--accent)) drop-shadow(0 0 20px rgba(110,231,183,.6)); animation:starSpin 8s linear infinite; }
 .glowStar svg{ width:100%; height:100%; display:block; }
-.glowStar.tl{ top:18px; left:18px } .glowStar.tr{ top:18px; right:18px; animation-duration:9.5s } .glowStar.bl{ bottom:18px; left:18px; animation-duration:10.5s } .glowStar.br{ bottom:18px; right:18px; animation-duration:7s }
+.glowStar.tl{ top:16px; left:16px } .glowStar.tr{ top:16px; right:16px; animation-duration:9.5s } .glowStar.bl{ bottom:16px; left:16px; animation-duration:10.5s } .glowStar.br{ bottom:16px; right:16px; animation-duration:7s }
 @keyframes starSpin{ from{ transform:rotate(0) } to{ transform:rotate(360deg) } }
 @media (prefers-reduced-motion:reduce){ .gem,.bigRing .glow,.tkLive .d,.tkTrack,.glowStar{ animation:none } }
 </style>
