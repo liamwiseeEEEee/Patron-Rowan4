@@ -165,8 +165,9 @@ function phaseOf(l){ const tau=(Date.now()-l.t)/3600000; const onset=l.onset||Ma
   return {k:'off',t:'Worn off'}; }
 
 /* ---------- log actions ---------- */
-function logSub(sub){ const t=logTime!=null?logTime:Date.now(); state.logs.push({id:'m_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:sub.name,mg:sub.mg,t:t,onset:sub.onset,tPeak:sub.tPeak,dur:sub.dur,lift:sub.lift,ref:sub.ref||sub.mg,cat:sub.cat||'rx'}); query=''; searchOpen=false; logTime=null; save(state); }
-function logByName(name){ let sub=allSubs().find(s=>s.name===name); if(!sub){ const ls=state.logs.filter(l=>l.name===name); sub=ls[ls.length-1]; } if(sub)logSub(sub); }
+function logSub(sub,mgOverride){ const t=logTime!=null?logTime:Date.now(); const mg=(mgOverride!=null?mgOverride:sub.mg); state.logs.push({id:'m_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name:sub.name,mg:mg,t:t,onset:sub.onset,tPeak:sub.tPeak,dur:sub.dur,lift:sub.lift,ref:sub.ref||sub.mg,cat:sub.cat||'rx'}); query=''; searchOpen=false; logTime=null; save(state); }
+function lastMg(name){ const ls=state.logs.filter(l=>l.name===name); return ls.length?ls[ls.length-1].mg:null; }
+function logByName(name){ let sub=allSubs().find(s=>s.name===name); if(!sub){ const ls=state.logs.filter(l=>l.name===name); sub=ls[ls.length-1]; } if(!sub)return; const def=lastMg(name)||sub.mg; const v=prompt('Your dose for '+name+' (mg):', def); if(v==null)return; const mg=Math.max(0,Math.round(+v)); if(!mg)return; logSub(sub,mg); }
 function removeLog(id){ state.logs=state.logs.filter(l=>String(l.id)!==String(id)); save(state); }
 function addCustom(name,mg){ name=String(name).trim()||'Custom'; mg=Math.max(0,Math.round(+mg||0)); const sub={name:name,mg:mg,onset:0.5,tPeak:2,dur:5,lift:Math.min(30,12+mg*0.05),ref:mg||1,cat:'custom'}; if(!state.custom.some(c=>String(c.name).toLowerCase()===name.toLowerCase()))state.custom.push(sub); logSub(sub); }
 function mostUsed(n){ const f={},last={}; state.logs.forEach(l=>{ f[l.name]=(f[l.name]||0)+1; last[l.name]=l; }); return Object.keys(f).sort((a,b)=>f[b]-f[a]).slice(0,n).map(nm=>last[nm]); }
