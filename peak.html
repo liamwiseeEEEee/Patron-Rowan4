@@ -303,12 +303,20 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
 .cafAddName{ flex:1; min-width:120px; }
 .cafAddMg{ width:84px; }
 .cafAddBtn{ appearance:none; cursor:pointer; padding:0 18px; border:0; border-radius:10px; font-family:var(--mono); font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:.06em; color:#04130c; background:var(--accent); }
-@media (prefers-reduced-motion:reduce){ .gem,.bigRing .glow,.tkLive .d,.tkTrack{ animation:none } }
+.glowStar{ position:fixed; width:22px; height:22px; z-index:0; pointer-events:none; filter:drop-shadow(0 0 8px var(--accent)) drop-shadow(0 0 18px rgba(110,231,183,.5)); animation:starSpin 8s linear infinite; }
+.glowStar svg{ width:100%; height:100%; display:block; }
+.glowStar.tl{ top:18px; left:18px } .glowStar.tr{ top:18px; right:18px; animation-duration:9.5s } .glowStar.bl{ bottom:18px; left:18px; animation-duration:10.5s } .glowStar.br{ bottom:18px; right:18px; animation-duration:7s }
+@keyframes starSpin{ from{ transform:rotate(0) } to{ transform:rotate(360deg) } }
+@media (prefers-reduced-motion:reduce){ .gem,.bigRing .glow,.tkLive .d,.tkTrack,.glowStar{ animation:none } }
 </style>
 <script src="gate.js"></script>
 </head>
 <body>
 <div class="grain"></div>
+<div class="glowStar tl" aria-hidden><svg viewBox="0 0 24 24"><path d="M12 0L14.8 9.2L24 12L14.8 14.8L12 24L9.2 14.8L0 12L9.2 9.2L12 0Z" fill="#6EE7B7"/></svg></div>
+<div class="glowStar tr" aria-hidden><svg viewBox="0 0 24 24"><path d="M12 0L14.8 9.2L24 12L14.8 14.8L12 24L9.2 14.8L0 12L9.2 9.2L12 0Z" fill="#6EE7B7"/></svg></div>
+<div class="glowStar bl" aria-hidden><svg viewBox="0 0 24 24"><path d="M12 0L14.8 9.2L24 12L14.8 14.8L12 24L9.2 14.8L0 12L9.2 9.2L12 0Z" fill="#6EE7B7"/></svg></div>
+<div class="glowStar br" aria-hidden><svg viewBox="0 0 24 24"><path d="M12 0L14.8 9.2L24 12L14.8 14.8L12 24L9.2 14.8L0 12L9.2 9.2L12 0Z" fill="#6EE7B7"/></svg></div>
 <main class="page">
   <div class="dust" id="dust"></div>
   <div class="shell" id="app"></div>
