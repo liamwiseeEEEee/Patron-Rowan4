@@ -212,8 +212,16 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
 .blockLab{ font-family:var(--mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--accent); margin:20px 0 12px; }
 .derived{ font-family:var(--mono); font-size:11px; letter-spacing:.04em; color:var(--muted); margin-top:10px; }
 .derived b{ color:var(--accent2); }
-.miniIn{ width:90px; background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:10px; padding:9px 11px; color:var(--fg); font-family:var(--ui); font-size:14px; }
+.miniIn{ width:72px; background:rgba(255,255,255,.04); border:1px solid var(--line); border-radius:10px; padding:9px 11px; color:var(--fg); font-family:var(--ui); font-size:14px; }
 .miniIn:focus{ outline:none; border-color:var(--accent); }
+.pulseBtn{ appearance:none; cursor:pointer; padding:9px 11px; border-radius:9px; border:1px solid var(--line2); background:rgba(110,231,183,.06); color:var(--accent2); font-family:var(--mono); font-size:11px; }
+.pulseBtn:hover{ background:rgba(110,231,183,.15); }
+.pulseRing{ position:relative; width:34px; height:34px; display:none; place-items:center; flex-shrink:0; }
+.pulseRing.on{ display:inline-grid; }
+.pulseRing svg{ position:absolute; inset:0; transform:rotate(-90deg); }
+.pulseRing .pt{ fill:none; stroke:rgba(255,255,255,.1); stroke-width:3; }
+.pulseRing .pf{ fill:none; stroke:var(--accent); stroke-width:3; stroke-linecap:round; filter:drop-shadow(0 0 4px var(--accent)); }
+.pulseCount{ position:relative; z-index:1; font-family:var(--mono); font-size:11px; color:var(--fg); }
 @media (max-width:520px){ .rateLab{ width:100%; } }
 
 /* nasdaq-style scrolling ticker */
@@ -1083,7 +1091,11 @@ function manualCard(h){
     +'<div class="rateRow"><span class="rateLab">Woke at</span><div class="chips">'+wakeChips+'</div></div>'
     +'<div class="rateRow"><span class="rateLab">Hours slept</span><div class="chips">'+hrChips+'</div></div>'
     + derived
-    +'<div class="rateRow" style="margin-top:18px"><span class="rateLab">Resting pulse</span><div class="chips"><input id="m-rhr" class="miniIn" type="number" min="20" max="150" placeholder="optional" value="'+(draft.rhr!=null?draft.rhr:'')+'"><span class="chipWord" style="color:var(--muted);font-style:normal;font-family:var(--mono);font-size:10px">optional · count 30s ×2</span></div></div>'
+    +'<div class="rateRow" style="margin-top:18px"><span class="rateLab">Resting pulse</span><div class="chips" style="align-items:center">'
+    +'<input id="m-rhr" class="miniIn" type="number" min="20" max="150" placeholder="bpm" value="'+(draft.rhr!=null?draft.rhr:'')+'">'
+    +'<button class="pulseBtn" data-pulse="10">10s</button><button class="pulseBtn" data-pulse="30">30s</button>'
+    +'<span class="pulseRing" id="pulseRing"><svg viewBox="0 0 34 34"><circle class="pt" cx="17" cy="17" r="14"/><circle class="pf" id="pulseFill" cx="17" cy="17" r="14"/></svg><span class="pulseCount" id="pulseCount"></span></span>'
+    +'<span class="chipWord" id="pulseHint" style="color:var(--muted);font-style:normal;font-family:var(--mono);font-size:10px">tap 10s/30s &amp; count beats</span></div></div>'
     +'<button class="primary" id="mSave">'+(isToday?'Save today’s readiness':'Save '+dObj.toLocaleDateString('en-US',{month:'short',day:'numeric'}))+'</button></div>';
 }
 function saveManual(){
@@ -1107,8 +1119,31 @@ function saveManual(){
 
 /* events */
 function captureRhr(){ const el=document.getElementById('m-rhr'); if(el&&draft){ const n=Number(el.value); draft.rhr=(el.value!==''&&isFinite(n))?n:null; } }
+/* pulse-counter timer: a ring fills over 10s/30s; you count beats, it → BPM */
+let pulseIntv=null;
+function startPulse(dur){
+  if(pulseIntv){ clearInterval(pulseIntv); pulseIntv=null; }
+  const ring=document.getElementById('pulseRing'), fill=document.getElementById('pulseFill'), count=document.getElementById('pulseCount'), hint=document.getElementById('pulseHint');
+  if(!ring||!fill) return;
+  const C=2*Math.PI*14; fill.style.strokeDasharray=C; fill.style.strokeDashoffset=C;
+  ring.classList.add('on'); if(hint)hint.textContent='counting… '+dur+'s';
+  const start=Date.now();
+  pulseIntv=setInterval(()=>{
+    const el=(Date.now()-start)/1000, frac=Math.min(1,el/dur);
+    fill.style.strokeDashoffset=C*(1-frac);
+    if(count)count.textContent=Math.max(0,Math.ceil(dur-el));
+    if(frac>=1){
+      clearInterval(pulseIntv); pulseIntv=null;
+      try{ if(navigator.vibrate)navigator.vibrate(200); }catch(e){}
+      const beats=prompt('How many beats did you count in '+dur+' seconds?');
+      ring.classList.remove('on'); if(count)count.textContent=''; if(hint)hint.textContent='tap 10s/30s & count beats';
+      if(beats!=null){ const b=Math.max(0,Math.round(+beats)); if(b){ const bpm=Math.round(b*(60/dur)); const inp=document.getElementById('m-rhr'); if(inp)inp.value=bpm; if(typeof draft!=='undefined'&&draft)draft.rhr=bpm; if(hint)hint.textContent='✓ '+bpm+' bpm'; } }
+    }
+  },50);
+}
 document.addEventListener('click',e=>{
   if(e.target.closest('#mSave')){ saveManual(); return; }
+  const pb=e.target.closest('[data-pulse]'); if(pb){ startPulse(parseInt(pb.dataset.pulse,10)||30); return; }
   const rm=e.target.closest('[data-rmcaf]'); if(rm){ removeCaffLog(rm.dataset.rmcaf); return; }
   const cc=e.target.closest('[data-clearcaf]'); if(cc){ if(confirm('Clear all of today’s caffeine?')) clearCaffToday(); return; }
   const ac=e.target.closest('[data-addcust]'); if(ac){ const n=document.getElementById('cafCustName'), m=document.getElementById('cafCustMg'); const mg=Math.round(+((m&&m.value)||0)); if(!mg||mg<=0){ alert('Enter the caffeine amount in mg.'); return; } addCustomCaff((n&&n.value)||'Custom', mg); return; }
