@@ -36,8 +36,8 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
   radial-gradient(40% 30% at 85% 5%, rgba(110,231,183,0.08), transparent 70%); pointer-events:none; }
 /* drifting particles */
 .dust{ position:absolute; inset:0; z-index:-1; pointer-events:none; opacity:.5; }
-.dust i{ position:absolute; width:3px; height:3px; border-radius:50%; background:var(--accent2); opacity:.18; filter:blur(.5px); animation:float 9s var(--ease) infinite; }
-@keyframes float{ 0%,100%{ transform:translateY(0); opacity:.06 } 50%{ transform:translateY(-14px); opacity:.3 } }
+.dust i{ position:absolute; border-radius:50%; background:var(--accent2); box-shadow:0 0 6px var(--accent2); animation:spark 6s var(--ease) infinite; }
+@keyframes spark{ 0%,100%{ transform:translateY(0) scale(.6); opacity:.05 } 50%{ transform:translateY(-16px) scale(1.4); opacity:.55 } }
 .shell{ max-width:1180px; margin:0 auto; }
 
 /* header */
@@ -87,7 +87,18 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
 /* right now */
 .nowGrid{ display:grid; grid-template-columns:300px 1fr; gap:18px; margin-bottom:54px; }
 @media (max-width:760px){ .nowGrid{ grid-template-columns:1fr; } }
-.card{ position:relative; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); padding:26px; }
+.card{ position:relative; border:1px solid var(--line); border-radius:var(--radius); background:var(--panel); padding:26px; transition:transform .3s var(--ease), border-color .3s var(--ease), box-shadow .3s var(--ease); box-shadow:0 1px 0 rgba(110,231,183,0.04) inset, 0 18px 40px -28px rgba(0,0,0,0.9); }
+.card:hover{ border-color:var(--line2); box-shadow:0 1px 0 rgba(110,231,183,0.08) inset, 0 22px 50px -26px rgba(0,0,0,0.95), 0 0 40px -22px var(--glow); }
+/* compact tracker bits */
+.trackRow{ display:flex; align-items:stretch; gap:8px; margin-top:4px; }
+.trackRow .cafChips{ flex:1; }
+.searchToggle{ appearance:none; cursor:pointer; flex-shrink:0; width:44px; border-radius:var(--radius-sm); border:1px solid var(--line2); background:rgba(52,211,153,.05); color:var(--accent2); display:grid; place-items:center; transition:all .15s var(--ease); }
+.searchToggle:hover,.searchToggle.on{ background:rgba(52,211,153,.16); border-color:var(--accent); }
+.searchToggle .cafSearchIcon{ position:static; transform:none; }
+.trackLink{ display:inline-block; margin-top:14px; font-family:var(--mono); font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--accent2); text-decoration:none; }
+.trackLink:hover{ color:var(--accent); }
+.cafChip.suppOn{ background:linear-gradient(120deg,var(--accent),var(--accent2)); border-color:transparent; }
+.cafChip.suppOn .cafChipName{ color:#04130c; }
 .scoreCard{ display:flex; flex-direction:column; align-items:center; justify-content:center; gap:18px; text-align:center; }
 .bigRing{ position:relative; width:200px; height:200px; display:grid; place-items:center; }
 .bigRing svg{ position:absolute; inset:0; transform:rotate(-90deg); overflow:visible; }
@@ -417,22 +428,56 @@ function medCoach(){ const logs=medTodayLogs(); if(!logs.length) return {icon:'�
   const pkC=clockOf(pk.getHours()+pk.getMinutes()/60), offC=clockOf(off.getHours()+off.getMinutes()/60);
   return {icon:'💊',txt:'<b>'+esc(l.name)+'</b> peaks ~<b>'+pkC+'</b>, fades ~<b>'+offC+'</b>. Stack your deep work before the fade. <span style="color:var(--muted)">(Informational, not dosing advice.)</span>'}; }
 function bindMed(){ const s=document.getElementById('medSearch'); if(!s)return; s.addEventListener('input',()=>{ medQuery=s.value; const r=document.getElementById('medResults'); if(r)r.innerHTML=medResultsHtml(medQuery); }); }
+let medOpen=false;
 function medCardHtml(){
   const board=Math.round(medBoardNow()); const tip=medCoach();
-  const chips=medQuickList().map(d=>'<button class="cafChip" data-medname="'+esc(d.name)+'"><span class="cafChipName">'+esc(d.name)+'</span><span class="cafChipMg">'+d.mg+'mg <em>+'+Math.round(d.lift)+'</em></span></button>').join('');
+  const chips=medQuickList().slice(0,4).map(d=>'<button class="cafChip" data-medname="'+esc(d.name)+'"><span class="cafChipName">'+esc(d.name)+'</span><span class="cafChipMg">'+d.mg+'mg <em>+'+Math.round(d.lift)+'</em></span></button>').join('');
   const searchIcon='<span class="cafSearchIcon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>';
+  const searchBlock = medOpen
+    ? '<div class="cafSearchWrap">'+searchIcon+'<input class="cafSearchIn" id="medSearch" type="text" placeholder="Search any med, pouch, nootropic…" value="'+esc(medQuery)+'" autocomplete="off"></div>'
+      +'<div class="cafResults" id="medResults">'+medResultsHtml(medQuery)+'</div>'
+      +'<div class="cafAddRow"><input class="cafAddName" id="medCustName" placeholder="Add a custom med/substance…"><input class="cafAddMg" id="medCustMg" type="number" inputmode="numeric" placeholder="mg"><button class="cafAddBtn" data-addmed="1">Add</button></div>'
+    : '';
   return '<div class="card cafCard">'
-    +'<div class="cafHero"><div class="cafHeroV">'+(board>0?'+'+board:'0')+'<small> focus on board</small></div><div class="cafCeil">prescription · nicotine · nootropics</div></div>'
-    +'<p class="cafQL">Quick log <span>· +N = peak effect</span></p>'
-    +'<div class="cafSearchWrap">'+searchIcon+'<input class="cafSearchIn" id="medSearch" type="text" placeholder="Search any med, pouch, nootropic…" value="'+esc(medQuery)+'" autocomplete="off"></div>'
-    +'<div class="cafResults" id="medResults">'+medResultsHtml(medQuery)+'</div>'
-    +'<div class="cafChips">'+chips+'</div>'
-    +'<div class="cafAddRow"><input class="cafAddName" id="medCustName" placeholder="Add a custom med/substance…"><input class="cafAddMg" id="medCustMg" type="number" inputmode="numeric" placeholder="mg"><button class="cafAddBtn" data-addmed="1">Add</button></div>'
+    +'<div class="cafHero"><div class="cafHeroV">'+(board>0?'+'+board:'0')+'<small> focus on board</small></div><div class="cafCeil">rx · nicotine · nootropics</div></div>'
+    +'<div class="trackRow"><div class="cafChips">'+chips+'</div><button class="searchToggle'+(medOpen?' on':'')+'" data-medsearch="1" title="Search">'+searchIcon+'</button></div>'
+    + searchBlock
     + medLogsHtml()
     +'<div class="cafTip"><span class="cafTipIcon">'+tip.icon+'</span><span class="cafTipTxt">'+tip.txt+'</span></div>'
+    +'<a class="trackLink" href="meds.html">Open Meds tracker →</a>'
     +'</div>';
 }
 function medLogsHtml(){ const logs=medTodayLogs(); if(!logs.length)return ''; return '<div class="cafLogsHead"><span class="cafLogsLab">Today’s doses</span><button class="cafClear" data-clearmed="1">clear all</button></div><div class="cafLogs">'+logs.map(l=>'<span class="cafLog"><b>'+esc(l.name)+'</b> '+Math.round(l.mg)+'mg · '+fmtClockMs(l.t)+'<span class="cafLogX" data-rmmed="'+esc(l.id||'')+'" title="Remove">×</span></span>').join('')+'</div>'; }
+
+/* ---- compact Water card (syncs water_standalone_v1) ---- */
+function logWater(n){ const s=readLS('water_standalone_v1')||{logs:{}}; if(!s.logs)s.logs={}; const k=dKey(); s.logs[k]=Math.max(0,(s.logs[k]||0)+n); try{ localStorage.setItem('water_standalone_v1',JSON.stringify(s)); }catch(e){} render(); }
+function waterCardHtml(){
+  const c=drinksToday(), t=waterTarget(); const pct=Math.min(100,Math.round(c/t*100)); const done=c>=t;
+  return '<div class="card cafCard">'
+    +'<div class="cafHero"><div class="cafHeroV">'+c+'<small> / '+t+' today</small></div><div class="cafCeil">'+(done?'target hit ✓':'hydration')+'</div></div>'
+    +'<div class="cafBar"><div class="cafBarFill" style="width:'+pct+'%"></div></div>'
+    +'<div class="cafChips"><button class="cafChip" data-water="1"><span class="cafChipName">+1 glass</span><span class="cafChipMg">~250 ml</span></button>'
+    +'<button class="cafChip" data-water="2"><span class="cafChipName">+2 glasses</span><span class="cafChipMg">~500 ml</span></button>'
+    +(c>0?'<button class="cafChip" data-water="-1"><span class="cafChipName">− undo</span><span class="cafChipMg">last glass</span></button>':'')+'</div>'
+    +'<a class="trackLink" href="water.html">Open Water tracker →</a></div>';
+}
+
+/* ---- compact Supplements card (tap to mark taken; syncs supplements_standalone_v1) ---- */
+function suppItems(){ const s=readLS('supplements_standalone_v1'); return (s&&Array.isArray(s.items))?s.items:[]; }
+function suppDateKey(){ const d=new Date(); if(d.getHours()<6)d.setDate(d.getDate()-1); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+function suppTakenMap(){ const s=readLS('supplements_standalone_v1'); return (s&&s.taken&&s.taken[suppDateKey()])||{}; }
+function toggleSupp(id){ const s=readLS('supplements_standalone_v1')||{items:[],taken:{}}; if(!s.taken)s.taken={}; const k=suppDateKey(); const day=Object.assign({},s.taken[k]||{}); if(day[id])delete day[id]; else day[id]=true; s.taken[k]=day; try{ localStorage.setItem('supplements_standalone_v1',JSON.stringify(s)); }catch(e){} render(); }
+function suppCardHtml(){
+  const items=suppItems();
+  if(!items.length) return '<div class="card cafCard"><div class="cafHero"><div class="cafHeroV" style="font-size:20px">No stack yet</div><div class="cafCeil">supplements</div></div><a class="trackLink" href="supplements.html">Set up Supplements →</a></div>';
+  const tk=suppTakenMap(); const taken=items.filter(i=>tk[i.id]).length;
+  const chips=items.map(i=>'<button class="cafChip'+(tk[i.id]?' suppOn':'')+'" data-supp="'+esc(i.id)+'"><span class="cafChipName">'+(tk[i.id]?'✓ ':'')+esc(i.name)+'</span></button>').join('');
+  return '<div class="card cafCard">'
+    +'<div class="cafHero"><div class="cafHeroV">'+taken+'<small> / '+items.length+' taken</small></div><div class="cafCeil">tap to log</div></div>'
+    +'<div class="cafBar"><div class="cafBarFill" style="width:'+Math.round(taken/items.length*100)+'%"></div></div>'
+    +'<div class="cafChips">'+chips+'</div>'
+    +'<a class="trackLink" href="supplements.html">Open Supplements →</a></div>';
+}
 
 /* ---- profile stats for the header ticker ---- */
 function profileStats(){ const p=profile()||{}; const out=[]; const imperial=p.units==='imperial';
@@ -844,7 +889,7 @@ function render(){
     + recs.map(r=>'<div class="recRow'+(r[0]?' warn':'')+'"><span class="recDot"></span><span class="recTxt"><b>'+esc(r[1])+'</b> '+esc(r[2])+'</span></div>').join('')
     +'</div>';
 
-  const nowSec='<div class="sec"><span class="secNum">01</span><span class="secTitle">Right now</span><span class="secLine"></span><button class="secI'+(infoOpen?' on':'')+'" id="infoBtn" title="How this is calculated">i</button></div>'
+  const nowSec='<div class="sec"><span class="secNum">02</span><span class="secTitle">Right now</span><span class="secLine"></span><button class="secI'+(infoOpen?' on':'')+'" id="infoBtn" title="How this is calculated">i</button></div>'
     + (infoOpen?infoCardHtml():'')
     +'<div class="nowGrid">'+scoreCard+todayCard+'</div>';
 
@@ -857,22 +902,23 @@ function render(){
     +'<div class="curveLabel"><div class="curveTitleRow"><span class="curveWord" id="curveWord">Peak</span><span class="curveAt" id="curveAt">at '+clockOf(PEAK.t)+'</span><span class="curveScrub" id="curveScrub"><span class="d"></span>Scrubbing</span></div>'
     +'<p class="curveDesc"><span class="curveEyebrow">Today’s energy curve</span><br>Your predicted score, hour by hour. Hover or drag to scrub. <span style="color:var(--accent2)">🌙 '+clockOf(optimalSleep().bed)+'</span> → <span style="color:var(--warn)">☀️ '+clockOf(optimalSleep().wake)+'</span> · optimal '+optimalSleep().need+'h sleep.</p></div>'
     +'<div class="seg">'+['line','bars','stack'].map(t=>'<button class="segBtn '+(chartType===t?'on':'')+'" data-chart="'+t+'">'+t+'</button>').join('')+'</div></div>'
+    + feelBarHtml()
     +'<div class="chartWrap" id="chartWrap">'+chartSvg()
     +'<div class="sleepMarks"><div class="sleepMark" style="left:'+clamp(optimalSleep().bed/24*100,5,95)+'%">🌙 '+clockOf(optimalSleep().bed)+'</div><div class="sleepMark" style="left:'+clamp(optimalSleep().wake/24*100,5,95)+'%">☀️ '+clockOf(optimalSleep().wake)+'</div></div>'
     +'<div class="scrubLine" id="scrubLine"></div><div class="scrubDot" id="scrubDot"></div><div class="scrubTip" id="scrubTip"></div></div>'
     +'<div class="xAxis">'+X_LABELS.map(l=>'<span>'+l+'</span>').join('')+'</div>'
     +'<div class="plan"><p class="planLabel">Today’s plan</p><div class="planEmpty">Nothing scheduled · plan your day around your peak</div></div>'
     +'</div>';
-  const daySec='<div class="sec"><span class="secNum">02</span><span class="secTitle">Your day</span><span class="secLine"></span></div>'+curveCard;
+  const daySec='<div class="sec"><span class="secNum">01</span><span class="secTitle">Your day</span><span class="secLine"></span></div>'+curveCard;
 
-  // caffeine — quick-log + crash coaching
+  // compact trackers — quick log + expandable search + link to the full page
   const cafSec='<div class="sec"><span class="secNum">03</span><span class="secTitle">Caffeine</span><span class="secLine"></span></div>'+caffeineCardHtml();
-
-  // meds & substances — search any drug/pouch/nootropic
   const medSec='<div class="sec"><span class="secNum">04</span><span class="secTitle">Meds &amp; substances</span><span class="secLine"></span></div>'+medCardHtml();
+  const waterSec='<div class="sec"><span class="secNum">05</span><span class="secTitle">Water</span><span class="secLine"></span></div>'+waterCardHtml();
+  const suppSec='<div class="sec"><span class="secNum">06</span><span class="secTitle">Supplements</span><span class="secLine"></span></div>'+suppCardHtml();
 
   const footNote='<p class="footNote">Peak is a science-based estimate from your own data — not a medical measurement. It personalizes to you over ~30 days. Tap the “i” to see how it’s calculated. Meds are modeled for information only, never as dosing advice.</p>';
-  document.getElementById('app').innerHTML=head+srcRow+feelBar+mCard+tk+nowSec+daySec+cafSec+medSec+footNote;
+  document.getElementById('app').innerHTML=head+srcRow+mCard+tk+daySec+nowSec+cafSec+medSec+waterSec+suppSec+footNote;
   bindScrub(); bindFeel(); bindCaf(); bindMed();
 }
 function feelBarHtml(){
@@ -886,28 +932,27 @@ function bindFeel(){ const s=document.getElementById('feelSlider'); if(!s)return
   s.addEventListener('input',()=>{ if(pct)pct.textContent=s.value+'%'; });
   s.addEventListener('change',()=>{ addFeel(+s.value); render(); });
 }
+let cafOpen=false;
 function caffeineCardHtml(){
   const consumed=Math.round(caffConsumedToday()), ceil=caffCeiling(), board=Math.round(caffeineNowMg());
   const pct=Math.min(100,Math.round(consumed/ceil*100));
   const barCls = consumed>ceil?'over':(consumed>ceil*0.75?'warn2':'');
   const tip=caffeineCoach();
-  const chips=caffQuickList().map(d=>{ const lift=caffLift(d.mg); return '<button class="cafChip" data-caf="'+d.mg+'" data-cafname="'+esc(d.name)+'"><span class="cafChipName">'+esc(d.name)+'</span><span class="cafChipMg">'+d.mg+'mg <em>+'+lift+'</em></span></button>'; }).join('');
+  const chips=caffQuickList().slice(0,4).map(d=>{ const lift=caffLift(d.mg); return '<button class="cafChip" data-caf="'+d.mg+'" data-cafname="'+esc(d.name)+'"><span class="cafChipName">'+esc(d.name)+'</span><span class="cafChipMg">'+d.mg+'mg <em>+'+lift+'</em></span></button>'; }).join('');
   const searchIcon='<span class="cafSearchIcon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg></span>';
+  const searchBlock = cafOpen
+    ? '<div class="cafSearchWrap">'+searchIcon+'<input class="cafSearchIn" id="cafSearch" type="text" placeholder="Search 40+ drinks…" value="'+esc(cafQuery)+'" autocomplete="off"></div>'
+      +'<div class="cafResults" id="cafResults">'+cafResultsHtml(cafQuery)+'</div>'
+      +'<div class="cafAddRow"><input class="cafAddName" id="cafCustName" placeholder="Add a custom drink…"><input class="cafAddMg" id="cafCustMg" type="number" inputmode="numeric" placeholder="mg"><button class="cafAddBtn" data-addcust="1">Add</button></div>'
+    : '';
   return '<div class="card cafCard">'
-    +'<div class="cafHero"><div class="cafHeroV">'+consumed+'<small> mg today</small></div><div class="cafCeil">'+board+'mg on board · ceiling '+ceil+'mg</div></div>'
+    +'<div class="cafHero"><div class="cafHeroV">'+consumed+'<small> mg today</small></div><div class="cafCeil">'+board+'mg on board · clears '+(caffClearsClock()||'—')+'</div></div>'
     +'<div class="cafBar"><div class="cafBarFill '+barCls+'" style="width:'+pct+'%"></div></div>'
-    +'<div class="cafStats">'
-    +'<div class="cafS"><div class="cafSV">'+caffCutoffClock()+'</div><div class="cafSL">Cut-off</div></div>'
-    +'<div class="cafS"><div class="cafSV">'+(caffClearsClock()||'Clear')+'</div><div class="cafSL">Out of system</div></div>'
-    +'<div class="cafS"><div class="cafSV">'+caffSweetDose()+'<small> mg</small></div><div class="cafSL">Ideal dose</div></div>'
-    +'</div>'
-    +'<p class="cafQL">Quick log <span>· +N = energy lift</span></p>'
-    +'<div class="cafSearchWrap">'+searchIcon+'<input class="cafSearchIn" id="cafSearch" type="text" placeholder="Search 40+ drinks…" value="'+esc(cafQuery)+'" autocomplete="off"></div>'
-    +'<div class="cafResults" id="cafResults">'+cafResultsHtml(cafQuery)+'</div>'
-    +'<div class="cafChips">'+chips+'</div>'
-    +'<div class="cafAddRow"><input class="cafAddName" id="cafCustName" placeholder="Add a custom drink…"><input class="cafAddMg" id="cafCustMg" type="number" inputmode="numeric" placeholder="mg"><button class="cafAddBtn" data-addcust="1">Add</button></div>'
+    +'<div class="trackRow"><div class="cafChips">'+chips+'</div><button class="searchToggle'+(cafOpen?' on':'')+'" data-cafsearch="1" title="Search drinks">'+searchIcon+'</button></div>'
+    + searchBlock
     + caffLogsHtml()
     +'<div class="cafTip'+(tip.warn?' warn':'')+'"><span class="cafTipIcon">'+tip.icon+'</span><span class="cafTipTxt">'+tip.txt+'</span></div>'
+    +'<a class="trackLink" href="stimulant.html">Open Caffeine tracker →</a>'
     +'</div>';
 }
 function caffLogsHtml(){
@@ -1030,6 +1075,10 @@ document.addEventListener('click',e=>{
   const cc=e.target.closest('[data-clearcaf]'); if(cc){ if(confirm('Clear all of today’s caffeine?')) clearCaffToday(); return; }
   const ac=e.target.closest('[data-addcust]'); if(ac){ const n=document.getElementById('cafCustName'), m=document.getElementById('cafCustMg'); const mg=Math.round(+((m&&m.value)||0)); if(!mg||mg<=0){ alert('Enter the caffeine amount in mg.'); return; } addCustomCaff((n&&n.value)||'Custom', mg); return; }
   const cf=e.target.closest('[data-caf]'); if(cf){ logCaffeine(+cf.dataset.caf, cf.dataset.cafname||'Caffeine'); return; }
+  const cs=e.target.closest('[data-cafsearch]'); if(cs){ cafOpen=!cafOpen; render(); return; }
+  const ms2=e.target.closest('[data-medsearch]'); if(ms2){ medOpen=!medOpen; render(); return; }
+  const wt=e.target.closest('[data-water]'); if(wt){ logWater(parseInt(wt.dataset.water,10)||0); return; }
+  const sp=e.target.closest('[data-supp]'); if(sp){ toggleSupp(sp.dataset.supp); return; }
   const md=e.target.closest('[data-medname]'); if(md){ logMedByName(md.dataset.medname); return; }
   const rmm=e.target.closest('[data-rmmed]'); if(rmm){ removeMedLog(rmm.dataset.rmmed); return; }
   const ccm=e.target.closest('[data-clearmed]'); if(ccm){ if(confirm('Clear all of today’s meds/substances?')) clearMedToday(); return; }
@@ -1044,8 +1093,10 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#infoBtn')){ infoOpen=!infoOpen; render(); return; }
 });
 
-/* dust particles */
-(function(){ const d=document.getElementById('dust'); if(!d)return; let html=''; const pos=[[12,20],[28,60],[44,15],[60,72],[74,30],[88,55],[20,82],[52,40],[68,88],[82,12],[36,90],[6,48]]; pos.forEach((p,i)=>{ html+='<i style="left:'+p[0]+'%;top:'+p[1]+'%;animation-delay:'+(i*0.7)+'s"></i>'; }); d.innerHTML=html; })();
+/* background sparks — varied size + position + timing for a lively, 3D-ish field */
+(function(){ const d=document.getElementById('dust'); if(!d)return;
+  const pos=[[8,18,2],[16,52,3],[24,80,2],[33,28,4],[41,64,2],[50,12,3],[57,46,2],[64,86,3],[72,24,2],[80,58,4],[88,38,2],[94,74,3],[12,38,2],[46,90,2],[68,8,3],[86,16,2]];
+  d.innerHTML=pos.map((p,i)=>'<i style="left:'+p[0]+'%;top:'+p[1]+'%;width:'+p[2]+'px;height:'+p[2]+'px;animation-delay:'+(i*0.45).toFixed(2)+'s;animation-duration:'+(5+(i%4))+'s"></i>').join(''); })();
 
 render();
 setInterval(()=>{ if(health())render(); }, 60000);
