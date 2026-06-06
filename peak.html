@@ -731,11 +731,18 @@ function bestSlot(list,durH,diff){ durH=Math.max(0.25,durH||1); let best=null,be
   return Math.round(best*4)/4;
 }
 function placeTask(p,list){ const dur=taskDur(p); const st=bestSlot(list,dur,p.diff); p.start=st; p.end=Math.min(24,st+dur); p.durH=dur; return p; }
-/* nudge a [start,start+dur] block so it doesn't overlap others; returns a free start */
-function avoidOverlap(start,dur,others){ const blocks=others.map(o=>[o.start,o.end]).sort((a,b)=>a[0]-b[0]); let s=clamp(start,0,24-dur);
-  for(let pass=0; pass<blocks.length+1; pass++){ let hit=null; for(const b of blocks){ if(s<b[1]&&s+dur>b[0]){ hit=b; break; } } if(!hit)break;
-    const after=hit[1], before=hit[0]-dur; s=(Math.abs(after-start)<=Math.abs(before-start)&&after+dur<=24)?after:(before>=0?before:after); }
-  return clamp(Math.round(s*4)/4,0,24-dur); }
+/* snap a desired start into the nearest FREE gap (within waking hours) that fits
+ * dur — guarantees no overlap with other tasks, and never lands in the sleep zone. */
+function snapFree(desired,dur,others){
+  const {wake,bed}=wakeBed(); let t=wake; const gaps=[];
+  others.slice().sort((a,b)=>a.start-b.start).forEach(o=>{ if(o.end<=wake||o.start>=bed)return; if(o.start>t)gaps.push([t,Math.min(o.start,bed)]); t=Math.max(t,o.end); });
+  if(t<bed)gaps.push([t,bed]);
+  const fit=gaps.filter(g=>g[1]-g[0]>=dur-1e-6);
+  if(!fit.length) return clamp(Math.round(desired*4)/4, wake, Math.max(wake,bed-dur));
+  let best=fit[0][0], bd=1e9;
+  fit.forEach(g=>{ const s=clamp(desired,g[0],g[1]-dur); const d=Math.abs(s-desired); if(d<bd){ bd=d; best=s; } });
+  return Math.round(best*4)/4;
+}
 function addSched(str){ if(!str||!str.trim())return; const tasks=loadSched(); str.split(/,|;|\band\b/i).forEach(pStr=>{ const p=parseTask(pStr); if(!p)return; if(!p.explicit||p.start==null){ placeTask(p,tasks); } else { p.start=((p.start%24)+24)%24; p.end=Math.max(p.start+0.25,Math.min(24,p.end)); } tasks.push(p); }); tasks.sort((a,b)=>a.start-b.start); saveSched(tasks); }
 function regapTask(id){ const tasks=loadSched(); const t=tasks.find(x=>x.id===id); if(!t)return; const others=tasks.filter(x=>x.id!==id); placeTask(t,others); tasks.sort((a,b)=>a.start-b.start); saveSched(tasks); }
 /* workout suggestion from gym history */
@@ -757,7 +764,7 @@ function bindTaskDrag(){ const wrap=document.getElementById('chartWrap'), svg=do
   wrap.querySelectorAll('.taskMark[data-taskid]').forEach(el=>{ el.addEventListener('pointerdown',e=>{
     e.preventDefault(); const id=el.dataset.taskid; const tasks=loadSched(); const t=tasks.find(x=>x.id===id); if(!t)return;
     const dur=taskDur(t); const others=tasks.filter(x=>x.id!==id); const r=svg.getBoundingClientRect(); el.classList.add('dragging'); let ns=t.start;
-    function move(ev){ const x=clamp(((ev.touches?ev.touches[0].clientX:ev.clientX)-r.left)/r.width,0,1); let st=Math.round((x*24-dur/2)*4)/4; ns=avoidOverlap(st,dur,others); el.style.left=clamp(((ns+dur/2)/24)*100,7,93)+'%'; }
+    function move(ev){ if(ev.cancelable)ev.preventDefault(); const x=clamp(((ev.touches?ev.touches[0].clientX:ev.clientX)-r.left)/r.width,0,1); let st=x*24-dur/2; ns=snapFree(st,dur,others); el.style.left=clamp(((ns+dur/2)/24)*100,7,93)+'%'; }
     function up(){ document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); document.removeEventListener('touchmove',move); document.removeEventListener('touchend',up); el.classList.remove('dragging'); t.start=ns; t.end=Math.min(24,ns+dur); t.durH=dur; t.explicit=true; tasks.sort((a,b)=>a.start-b.start); saveSched(tasks); }
     document.addEventListener('pointermove',move); document.addEventListener('pointerup',up);
     document.addEventListener('touchmove',move,{passive:false}); document.addEventListener('touchend',up);
