@@ -777,7 +777,25 @@ try{ const _r=readLS(SCHED); if(_r&&_r.seed!==SCHED_SEED){ localStorage.removeIt
  * a fresh wipe everywhere — used to clear the stuck 6:45 schedule on existing devices. */
 const SCHED_NUKE='peak_sched_nuke_v1';
 try{ if(localStorage.getItem('peak_sched_nuked')!==SCHED_NUKE){ localStorage.removeItem(SCHED); localStorage.removeItem('patron_db_peaksched'); localStorage.setItem('peak_sched_nuked',SCHED_NUKE); } }catch(e){}
-function loadSched(){ const r=readLS(SCHED); return (r&&r.seed===SCHED_SEED&&r.day===dKey()&&Array.isArray(r.tasks))?r.tasks:DEFAULT_SCHED.map(t=>Object.assign({},t)); }
+/* Defensive heal: tasks must NEVER overlap on screen — not even if older/stale
+ * saved data (or a cloud restore) stacked several onto 6:45. Locked tasks hold
+ * their time; any movable task that overlaps an already-placed one is reflowed
+ * into the next free slot. Runs on every load so a dirty schedule self-corrects
+ * the instant it's read (and persists clean on the next save). */
+function sanitizeSched(tasks){ if(!Array.isArray(tasks))return tasks;
+  const fixed=tasks.filter(t=>t&&!t.gap), gaps=tasks.filter(t=>t&&t.gap);
+  const isLocked=t=>(t.locked!=null?!!t.locked:!!t.explicit) && t.start!=null;
+  const placed=[], result=[]; const wake=wakeBed().wake;
+  const overlaps=(s,e)=>placed.some(p=>s<p.end-1e-6 && e>p.start+1e-6);
+  fixed.filter(isLocked).sort((a,b)=>a.start-b.start).forEach(t=>{ placed.push({start:t.start,end:t.end}); result.push(t); });
+  fixed.filter(t=>!isLocked(t)).sort((a,b)=>((a.start==null?1e9:a.start)-(b.start==null?1e9:b.start))).forEach(t=>{
+    const dur=taskDur(t); let s=t.start;
+    if(s==null||overlaps(s,s+dur)){ s=snapFree(s==null?wake:s, dur, placed); }
+    t.start=s; t.end=Math.min(24,s+dur); t.durH=t.end-t.start;
+    placed.push({start:t.start,end:t.end}); result.push(t);
+  });
+  return result.concat(gaps).sort((a,b)=>((a.start==null?1e9:a.start)-(b.start==null?1e9:b.start))); }
+function loadSched(){ const r=readLS(SCHED); const tasks=(r&&r.seed===SCHED_SEED&&r.day===dKey()&&Array.isArray(r.tasks))?r.tasks:DEFAULT_SCHED.map(t=>Object.assign({},t)); return sanitizeSched(tasks); }
 function saveSched(tasks){ try{ localStorage.setItem(SCHED,JSON.stringify({day:dKey(),seed:SCHED_SEED,tasks})); }catch(e){} if(window.PatronDB&&PatronDB.isCloud())PatronDB.set('peaksched',{day:dKey(),seed:SCHED_SEED,tasks}); render(); }
 function diffOf(s){ if(/\b(hard|intense|deep|heavy|max|pr|grind)\b/i.test(s))return 'hard'; if(/\b(easy|chill|light|admin|rest|relax|recover)\b/i.test(s))return 'easy'; return 'med'; }
 /* ----------------------------------------------------------------------
