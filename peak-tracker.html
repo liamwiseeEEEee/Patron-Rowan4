@@ -783,7 +783,7 @@ try{ const _r=readLS(SCHED); if(_r&&_r.seed!==SCHED_SEED){ localStorage.removeIt
 /* one-time hard reset: clears any saved schedule (and its dead cloud mirror) ONCE
  * per browser, then sets a flag so your later edits stick. Bump SCHED_NUKE to force
  * a fresh wipe everywhere — used to clear the stuck 6:45 schedule on existing devices. */
-const SCHED_NUKE='peak_sched_nuke_v2';
+const SCHED_NUKE='peak_sched_nuke_v3';
 try{ if(localStorage.getItem('peak_sched_nuked')!==SCHED_NUKE){ localStorage.removeItem(SCHED); localStorage.removeItem('patron_db_peaksched'); localStorage.setItem('peak_sched_nuked',SCHED_NUKE); } }catch(e){}
 /* Defensive heal: tasks must NEVER overlap on screen — not even if older/stale
  * saved data (or a cloud restore) stacked several onto 6:45. Locked tasks hold
@@ -936,11 +936,11 @@ function placeTask(p,list){ const dur=taskDur(p);
 /* snap a desired start into the nearest FREE gap (within waking hours) that fits
  * dur — guarantees no overlap with other tasks, and never lands in the sleep zone. */
 function snapFree(desired,dur,others){
-  const {wake,bed}=wakeBed(); let t=wake; const gaps=[];
-  others.slice().sort((a,b)=>a.start-b.start).forEach(o=>{ if(o.end<=wake||o.start>=bed)return; if(o.start>t)gaps.push([t,Math.min(o.start,bed)]); t=Math.max(t,o.end); });
+  const {wake,bed}=wakeBed(); const floor=Math.min(Math.max(wake,dawnFloor()),Math.max(wake,bed-dur)); let t=floor; const gaps=[];
+  others.slice().sort((a,b)=>a.start-b.start).forEach(o=>{ if(o.end<=floor||o.start>=bed)return; if(o.start>t)gaps.push([t,Math.min(o.start,bed)]); t=Math.max(t,o.end); });
   if(t<bed)gaps.push([t,bed]);
   const fit=gaps.filter(g=>g[1]-g[0]>=dur-1e-6);
-  if(!fit.length) return clamp(Math.round(desired*4)/4, wake, Math.max(wake,bed-dur));
+  if(!fit.length) return clamp(Math.round(desired*4)/4, floor, Math.max(floor,bed-dur));
   let best=fit[0][0], bd=1e9;
   fit.forEach(g=>{ const s=clamp(desired,g[0],g[1]-dur); const d=Math.abs(s-desired); if(d<bd){ bd=d; best=s; } });
   return Math.round(best*4)/4;
