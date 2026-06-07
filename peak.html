@@ -204,8 +204,11 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
 .sleepEditPop{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:9; width:236px; background:var(--panel2); border:1px solid var(--line2); border-radius:14px; padding:16px 18px; box-shadow:0 20px 55px rgba(0,0,0,.7); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
 .sleepEditTitle{ font-family:var(--serif); font-style:italic; font-size:17px; margin-bottom:13px; }
 .sleepEditRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:11px; font-family:var(--mono); font-size:11px; letter-spacing:.04em; color:var(--muted2); }
-.sleepEditRow input[type=time]{ background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:8px; padding:7px 9px; color:var(--fg); font-family:var(--mono); font-size:13px; color-scheme:dark; }
-.sleepEditRow input[type=time]:focus{ outline:none; border-color:var(--accent); }
+.sleepStep{ display:inline-flex; align-items:center; gap:0; background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:10px; overflow:hidden; }
+.sleepStepB{ appearance:none; cursor:pointer; width:34px; height:34px; border:0; background:none; color:var(--accent2); font-size:20px; line-height:1; display:grid; place-items:center; }
+.sleepStepB:hover{ background:rgba(110,231,183,.14); color:var(--accent); }
+.sleepStepB:active{ background:rgba(110,231,183,.24); }
+.sleepStepV{ min-width:74px; text-align:center; font-family:var(--mono); font-size:13px; color:var(--fg); border-left:1px solid var(--line); border-right:1px solid var(--line); padding:8px 4px; }
 .sleepEditBtns{ display:flex; gap:8px; margin-top:6px; }
 .sleepEditCancel,.sleepEditSaveBtn{ flex:1; appearance:none; cursor:pointer; border-radius:8px; padding:9px; font-family:var(--mono); font-size:11px; letter-spacing:.04em; }
 .sleepEditCancel{ background:none; border:1px solid var(--line); color:var(--muted2); }
@@ -882,17 +885,21 @@ function optimalSleep(){ const h=health(); const wake=wakeBed().wake; const need
 function planSleep(){ const h=health(); const wake=wakeBed().wake; const bedH=(h&&h.bedtime)?parseHM(h.bedtime):null;
   const bed=(bedH!=null)?bedH:optimalSleep().bed; return {wake:Math.round(wake*4)/4, bed:Math.round(bed*4)/4}; }
 function floatTo24(t){ t=((t%24)+24)%24; let H=Math.floor(t), M=Math.round((t-H)*60); if(M===60){H++;M=0;} return String(H%24).padStart(2,'0')+':'+String(M).padStart(2,'0'); }
-let sleepEditOpen=false;
-/* inline editor that pops on the graph — set when you woke + when you'll sleep */
-function sleepEditPopHtml(){ if(!sleepEditOpen)return ''; const ps=planSleep();
-  const h=health(); const wv=(h&&h.wakeTime&&parseHM(h.wakeTime)!=null)?floatTo24(parseHM(h.wakeTime)):floatTo24(ps.wake);
-  const bv=floatTo24(ps.bed);
+let sleepEditOpen=false, sleepEditWake=6.75, sleepEditBed=22.75;
+/* inline editor that pops on the graph — big tap targets, no native picker.
+ * −/+ nudge by 15 min; the display updates instantly without a re-render. */
+function sleepEditPopHtml(){ if(!sleepEditOpen)return '';
+  const row=(key,label,val)=>'<div class="sleepEditRow"><span>'+label+'</span><div class="sleepStep">'
+      +'<button class="sleepStepB" data-sleepadj="'+key+':-1">–</button>'
+      +'<span class="sleepStepV" id="sleep'+key+'Disp">'+clockOf(val)+'</span>'
+      +'<button class="sleepStepB" data-sleepadj="'+key+':1">+</button></div></div>';
   return '<div class="sleepEditPop" id="sleepEditPop">'
     +'<div class="sleepEditTitle">Your sleep</div>'
-    +'<label class="sleepEditRow"><span>I woke up at</span><input type="time" id="sleepWakeIn" value="'+wv+'"></label>'
-    +'<label class="sleepEditRow"><span>I’ll sleep at</span><input type="time" id="sleepBedIn" value="'+bv+'"></label>'
+    +row('Wake','I woke up at', sleepEditWake)
+    +row('Bed','I’ll sleep at', sleepEditBed)
     +'<div class="sleepEditBtns"><button class="sleepEditCancel" data-sleepcancel="1">Cancel</button><button class="sleepEditSaveBtn" data-sleepsave="1">Save</button></div>'
     +'</div>'; }
+function openSleepEdit(){ const ps=planSleep(); sleepEditWake=ps.wake; sleepEditBed=ps.bed; sleepEditOpen=true; render(); }
 function saveSleepTimes(wakeHM, bedHM){ const h=health()||{source:'manual',connected:true}; const n=Object.assign({},h);
   if(wakeHM)n.wakeTime=wakeHM; if(bedHM)n.bedtime=bedHM; n.connected=true; n.ts=Date.now(); saveHealth(n); _hl=undefined; sleepEditOpen=false; render(); }
 
@@ -1889,9 +1896,12 @@ document.addEventListener('click',e=>{
   const aw=e.target.closest('[data-addworkout]'); if(aw){ workoutOpen=false; addWorkout(parseFloat(aw.dataset.addworkout)); return; }
   if(e.target.closest('[data-plantoggle]')){ planOpen=!planOpen; render(); return; }
   if(e.target.closest('[data-planadd]')){ const el=document.getElementById('schInput'); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.focus(); } return; }
-  if(e.target.closest('[data-sleepedit]')){ sleepEditOpen=true; render(); return; }
+  if(e.target.closest('[data-sleepedit]')){ openSleepEdit(); return; }
   if(e.target.closest('[data-sleepcancel]')){ sleepEditOpen=false; render(); return; }
-  if(e.target.closest('[data-sleepsave]')){ const w=document.getElementById('sleepWakeIn'), bd=document.getElementById('sleepBedIn'); saveSleepTimes(w&&w.value, bd&&bd.value); return; }
+  const sadj=e.target.closest('[data-sleepadj]'); if(sadj){ const p=sadj.dataset.sleepadj.split(':'); const step=0.25*(+p[1]);
+    if(p[0]==='Wake'){ sleepEditWake=((sleepEditWake+step)%24+24)%24; const el=document.getElementById('sleepWakeDisp'); if(el)el.textContent=clockOf(sleepEditWake); }
+    else { sleepEditBed=((sleepEditBed+step)%24+24)%24; const el=document.getElementById('sleepBedDisp'); if(el)el.textContent=clockOf(sleepEditBed); } return; }
+  if(e.target.closest('[data-sleepsave]')){ saveSleepTimes(floatTo24(sleepEditWake), floatTo24(sleepEditBed)); return; }
   const pb=e.target.closest('[data-pulse]'); if(pb){ startPulse(parseInt(pb.dataset.pulse,10)||30); return; }
   const rm=e.target.closest('[data-rmcaf]'); if(rm){ removeCaffLog(rm.dataset.rmcaf); return; }
   const cc=e.target.closest('[data-clearcaf]'); if(cc){ if(confirm('Clear all of today’s caffeine?')) clearCaffToday(); return; }
@@ -1915,7 +1925,7 @@ document.addEventListener('click',e=>{
   if(e.target.closest('#infoBtn')){ infoOpen=!infoOpen; render(); return; }
   // click a free stretch of the chart to arm that window (or a task to arm it)
   const cwrap=e.target.closest('#chartWrap');
-  if(cwrap && !e.target.closest('.taskMark') && !e.target.closest('.plan') && !e.target.closest('.sleepHit') && !e.target.closest('.sleepEditBtn')){
+  if(cwrap && !e.target.closest('.taskMark') && !e.target.closest('.plan') && !e.target.closest('.sleepHit') && !e.target.closest('.sleepEditBtn') && !e.target.closest('.sleepEditPop')){
     const r=cwrap.getBoundingClientRect(); const hour=clamp((e.clientX-r.left)/r.width,0,1)*24; schArmHour(hour); return;
   }
 });
