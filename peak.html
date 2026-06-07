@@ -170,7 +170,22 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
 .segBtn.on{ background:rgba(52,211,153,.14); color:var(--accent2); }
 
 .chartWrap{ position:relative; width:100%; }
-.chartSvg{ width:100%; height:300px; display:block; overflow:visible; touch-action:none; }
+.chartSvg{ position:relative; z-index:1; width:100%; height:300px; display:block; overflow:visible; touch-action:none; }
+/* chart backdrop (ported from Graph Lab: aurora/particles/mountains/stars/grid/dots) */
+.chartBg{ position:absolute; inset:0; z-index:0; overflow:hidden; pointer-events:none; border-radius:var(--radius-sm); }
+.bgk-aurora{ background:radial-gradient(ellipse 60% 55% at 32% 60%, var(--c-soft), transparent 68%),radial-gradient(ellipse 50% 45% at 75% 38%, var(--c-soft), transparent 70%),linear-gradient(135deg,#0a120e 0%,#050806 100%); opacity:.6; }
+.bgk-grid{ background-image:linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px); background-size:26px 26px; }
+.bgk-dots{ background-image:radial-gradient(var(--c-soft) 1.1px, transparent 1.4px); background-size:18px 18px; opacity:.5; }
+.bgk-mountains svg{ position:absolute; left:0; right:0; bottom:0; width:100%; height:62%; display:block; opacity:.7; }
+.bgk-particles span{ position:absolute; width:2px; height:2px; border-radius:50%; background:var(--c); box-shadow:0 0 6px var(--c-glow); opacity:0; animation:gp-drift linear infinite; }
+@keyframes gp-drift{ 0%{ transform:translate3d(0,0,0); opacity:0; } 12%{ opacity:.8; } 88%{ opacity:.5; } 100%{ transform:translate3d(var(--dx,10px),var(--dy,-120px),0); opacity:0; } }
+.bgk-stars{ background:radial-gradient(ellipse 90% 70% at 50% -10%, #0a1118, #05070b 78%); }
+.bgk-stars .milky{ position:absolute; left:-20%; right:-20%; top:38%; height:42%; transform:rotate(-18deg); filter:blur(14px); opacity:.5; background:linear-gradient(90deg, transparent, var(--c-soft) 35%, rgba(255,255,255,.10) 50%, var(--c-soft) 65%, transparent); }
+.bgk-stars .star{ position:absolute; border-radius:50%; background:#fff; box-shadow:0 0 4px rgba(255,255,255,.6); animation:twinkle var(--tw,3s) ease-in-out infinite; }
+.bgk-stars .star.tint{ background:var(--c); box-shadow:0 0 5px var(--c-glow); }
+@keyframes twinkle{ 0%,100%{ opacity:.18; } 50%{ opacity:.95; } }
+.bgk-stars .shoot{ position:absolute; width:90px; height:2px; border-radius:2px; opacity:0; background:linear-gradient(90deg, transparent, #fff 60%, var(--c)); box-shadow:0 0 8px var(--c-glow); animation:shoot var(--sd,7s) ease-in infinite; animation-delay:var(--sdelay,0s); }
+@keyframes shoot{ 0%{ opacity:0; transform:translate(0,0) rotate(20deg) scaleX(.2); } 6%{ opacity:1; } 16%{ opacity:1; } 30%{ opacity:0; transform:translate(260px,95px) rotate(20deg) scaleX(1); } 100%{ opacity:0; transform:translate(260px,95px) rotate(20deg) scaleX(1); } }
 .scrubLine{ position:absolute; top:0; bottom:30px; width:1px; background:rgba(255,255,255,.28); pointer-events:none; display:none; }
 .scrubDot{ position:absolute; width:14px; height:14px; border-radius:50%; background:var(--warn); box-shadow:0 0 14px var(--warn),0 0 0 4px rgba(251,191,36,.18); transform:translate(-50%,-50%); pointer-events:none; display:none; }
 .scrubTip{ position:absolute; transform:translate(-50%,-130%); background:var(--panel2); border:1px solid var(--line2); border-radius:10px; padding:8px 12px; pointer-events:none; display:none; white-space:nowrap; backdrop-filter:blur(8px); }
@@ -828,12 +843,24 @@ function loadTheme(){ try{ const t=JSON.parse(localStorage.getItem(PEAK_THEME)||
 /* the energy-curve look — defaults to the shipped "stepped area" design; a pasted
  * Graph Lab code (lab:'graph') overrides any of: color, line, glow, variant, height-color. */
 function graphStyle(){ const t=loadTheme(); const g=(t&&t.graph)||{};
-  return { color:(typeof g.color==='string'&&g.color)?g.color:'#E9EFE9', line:(g.line!=null?+g.line:3), glow:(g.glow!==false), variant:String(g.variant||'stepped area').toLowerCase(), heightColor:(g.heightColor!=null?!!g.heightColor:true), hiC:g.hiC||'#6EE7B7', loC:g.loC||'#EF4444' }; }
+  return { color:(typeof g.color==='string'&&g.color)?g.color:'#E9EFE9', line:(g.line!=null?+g.line:3), glow:(g.glow!==false), variant:String(g.variant||'stepped area').toLowerCase(), heightColor:(g.heightColor!=null?!!g.heightColor:true), hiC:g.hiC||'#6EE7B7', loC:g.loC||'#EF4444', backdrop:String(g.backdrop||'none').toLowerCase() }; }
 function schedStyle(){ const t=loadTheme(); const s=Object.assign({},SCHED_STYLE_DEFAULT,(t&&t.style)||{}); s.diff=Object.assign({},SCHED_STYLE_DEFAULT.diff,(t&&t.style&&t.style.diff)||{}); return s; }
 function graphColor(){ const c=schedStyle().acc; return (typeof c==='string'&&c)?c:'#34D399'; }   // the energy-curve line/area/dot color = the theme accent
 function applyThemeBg(){ const t=loadTheme(); const r=document.documentElement; if(t&&t.bg){ r.style.setProperty('--bg',t.bg); } else { r.style.removeProperty('--bg'); } }
 /* PEAK-THEME:<base64 json> → {style, bg, tasks?}. Returns true on success. */
-function normGraph(c){ return { color:c.color||null, line:(c.line!=null?+c.line:null), glow:(c.glow!==false), variant:c.variant||c.animate||'line', heightColor:!!c.heightColor, hiC:c.hiC||null, loC:c.loC||null }; }
+function normGraph(c){ return { color:c.color||null, line:(c.line!=null?+c.line:null), glow:(c.glow!==false), variant:c.variant||c.animate||'line', heightColor:!!c.heightColor, hiC:c.hiC||null, loC:c.loC||null, backdrop:c.backdrop||c.bg||'none' }; }
+/* the chart backdrop (Graph Lab "BACKDROP": aurora/particles/mountains/stars/grid/dots),
+ * tinted to the graph color. Cached per (type|color) so stars don't reshuffle each render. */
+const MOUNTAIN_SVG='<svg viewBox="0 0 1000 300" preserveAspectRatio="none"><path d="M0,210 L90,160 L170,185 L260,120 L350,160 L470,100 L580,150 L700,110 L820,160 L920,120 L1000,150 L1000,300 L0,300 Z" fill="var(--c-soft)" opacity=".5"/><path d="M0,250 L110,215 L230,240 L350,200 L470,235 L600,205 L720,240 L850,210 L1000,245 L1000,300 L0,300 Z" fill="var(--c)" opacity=".22"/></svg>';
+let _chartBgCache={key:null,html:''};
+function chartBackdropHtml(){ const g=graphStyle(); const bd=g.backdrop; if(!bd||bd==='none')return '';
+  const key=bd+'|'+g.color; if(_chartBgCache.key===key)return _chartBgCache.html;
+  const c=g.color, soft=toRGBA(c,.35), glow=toRGBA(c,.6); let inner='';
+  if(bd==='mountains') inner=MOUNTAIN_SVG;
+  else if(bd==='particles'){ for(let i=0;i<16;i++){ const dur=8+Math.random()*10; inner+='<span style="left:'+(Math.random()*100).toFixed(1)+'%;top:'+(55+Math.random()*45).toFixed(1)+'%;animation-duration:'+dur.toFixed(1)+'s;animation-delay:'+(-Math.random()*dur).toFixed(1)+'s;--dx:'+(Math.random()*40-20).toFixed(0)+'px;--dy:'+(-(60+Math.random()*80)).toFixed(0)+'px"></span>'; } }
+  else if(bd==='stars'){ inner='<span class="milky"></span>'; for(let i=0;i<64;i++){ const sz=(0.8+Math.random()*1.8).toFixed(2); inner+='<span class="star'+(Math.random()<0.3?' tint':'')+'" style="width:'+sz+'px;height:'+sz+'px;left:'+(Math.random()*100).toFixed(1)+'%;top:'+(Math.random()*100).toFixed(1)+'%;--tw:'+(2+Math.random()*4).toFixed(1)+'s;animation-delay:'+(-Math.random()*5).toFixed(1)+'s"></span>'; } for(let j=0;j<3;j++){ inner+='<span class="shoot" style="left:'+(-5+Math.random()*45).toFixed(1)+'%;top:'+(3+Math.random()*40).toFixed(1)+'%;--sd:'+(6+Math.random()*4).toFixed(1)+'s;--sdelay:'+(j*3+Math.random()*4).toFixed(1)+'s"></span>'; } }
+  const html='<div class="chartBg bgk-'+bd+'" style="--c:'+c+';--c-soft:'+soft+';--c-glow:'+glow+'">'+inner+'</div>';
+  _chartBgCache={key,html}; return html; }
 function importThemeCode(code){ try{
     let raw=String(code||'').trim(); if(!raw)return false;
     // 1) Schedule Lab theme (base64): graph color + background + card style + tasks
@@ -1510,7 +1537,7 @@ function render(){
     +'<p class="curveDesc">'+curveStatusHtml()+'</p></div>'
     +'<div class="seg">'+['line','bars','stack'].map(t=>'<button class="segBtn '+(chartType===t?'on':'')+'" data-chart="'+t+'">'+t+'</button>').join('')+'</div></div>'
     + feelBarHtml()
-    +'<div class="chartWrap" id="chartWrap">'+chartSvg()
+    +'<div class="chartWrap" id="chartWrap">'+chartBackdropHtml()+chartSvg()
     +''
     +'<div class="schBands" id="schBands">'+schOverlayHtml()+'</div>'
     +'<div class="crashMarks">'+crashLabels+'</div>'
