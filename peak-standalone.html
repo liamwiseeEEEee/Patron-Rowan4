@@ -3,11 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#05080a" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Liam" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
 <title>Peak · Liam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -465,7 +468,6 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
 </main>
 <div id="modalRoot"></div>
 
-<!-- standalone build: no cloud sync. All data stays on this device (localStorage). -->
 <script>
 /* ============================================================
  * PEAK TRACKER — one place for all vitals.
@@ -714,7 +716,7 @@ function medCardHtml(){
     + searchBlock
     + medLogsHtml()
     +'<div class="cafTip"><span class="cafTipIcon">'+tip.icon+'</span><span class="cafTipTxt">'+tip.txt+'</span></div>'
-    +''
+    +'<a class="trackLink" href="meds.html">Open Meds tracker →</a>'
     +'</div>';
 }
 function medLogsHtml(){ const logs=medTodayLogs(); if(!logs.length)return ''; return '<div class="cafLogsHead"><span class="cafLogsLab">Today’s doses</span><button class="cafClear" data-clearmed="1">clear all</button></div><div class="cafLogs">'+logs.map(l=>'<span class="cafLog"><b>'+esc(l.name)+'</b> '+Math.round(l.mg)+'mg · '+fmtClockMs(l.t)+'<span class="cafLogX" data-rmmed="'+esc(l.id||'')+'" title="Remove">×</span></span>').join('')+'</div>'; }
@@ -729,7 +731,7 @@ function waterCardHtml(){
     +'<div class="cafChips"><button class="cafChip" data-water="1"><span class="cafChipName">+1 glass</span><span class="cafChipMg">~250 ml</span></button>'
     +'<button class="cafChip" data-water="2"><span class="cafChipName">+2 glasses</span><span class="cafChipMg">~500 ml</span></button>'
     +(c>0?'<button class="cafChip" data-water="-1"><span class="cafChipName">− undo</span><span class="cafChipMg">last glass</span></button>':'')+'</div>'
-    +'</div>';
+    +'<a class="trackLink" href="water.html">Open Water tracker →</a></div>';
 }
 
 /* ---- compact Supplements card (tap to mark taken; syncs supplements_standalone_v1) ---- */
@@ -739,14 +741,14 @@ function suppTakenMap(){ const s=readLS('supplements_standalone_v1'); return (s&
 function toggleSupp(id){ const s=readLS('supplements_standalone_v1')||{items:[],taken:{}}; if(!s.taken)s.taken={}; const k=suppDateKey(); const day=Object.assign({},s.taken[k]||{}); if(day[id])delete day[id]; else day[id]=true; s.taken[k]=day; try{ localStorage.setItem('supplements_standalone_v1',JSON.stringify(s)); }catch(e){} render(); }
 function suppCardHtml(){
   const items=suppItems();
-  if(!items.length) return '<div class="card cafCard"><div class="cafHero"><div class="cafHeroV" style="font-size:20px">No stack yet</div><div class="cafCeil">supplements</div></div></div>';
+  if(!items.length) return '<div class="card cafCard"><div class="cafHero"><div class="cafHeroV" style="font-size:20px">No stack yet</div><div class="cafCeil">supplements</div></div><a class="trackLink" href="supplements.html">Set up Supplements →</a></div>';
   const tk=suppTakenMap(); const taken=items.filter(i=>tk[i.id]).length;
   const chips=items.map(i=>'<button class="cafChip'+(tk[i.id]?' suppOn':'')+'" data-supp="'+esc(i.id)+'"><span class="cafChipName">'+(tk[i.id]?'✓ ':'')+esc(i.name)+'</span></button>').join('');
   return '<div class="card cafCard">'
     +'<div class="cafHero"><div class="cafHeroV">'+taken+'<small> / '+items.length+' taken</small></div><div class="cafCeil">tap to log</div></div>'
     +'<div class="cafBar"><div class="cafBarFill" style="width:'+Math.round(taken/items.length*100)+'%"></div></div>'
     +'<div class="cafChips">'+chips+'</div>'
-    +'</div>';
+    +'<a class="trackLink" href="supplements.html">Open Supplements →</a></div>';
 }
 
 /* ---- profile stats for the header ticker ---- */
@@ -1324,9 +1326,9 @@ function sleepHitHtml(){ const {bed,wake}=optimalSleep();
   const z=(a,b)=>{ if(b<=a+0.05)return ''; const L=(a/24*100), W=((b-a)/24*100); return '<div class="sleepHit" style="left:'+L.toFixed(2)+'%;width:'+W.toFixed(2)+'%"></div>'; };
   return z(0,wake)+z(bed,24)+'<button id="sleepEditBtn" class="sleepEditBtn" data-addsleep="1" style="display:none">✎ Edit wake &amp; sleep time</button>'; }
 function bindSleepEdit(){ const wrap=document.getElementById('chartWrap'); if(!wrap)return; const btn=document.getElementById('sleepEditBtn'); const hits=wrap.querySelectorAll('.sleepHit'); if(!btn||!hits.length)return; let hideT;
-  const show=ev=>{ clearTimeout(hideT); const r=wrap.getBoundingClientRect(); btn.style.display='block'; let x=ev.clientX-r.left; x=clamp(x, btn.offsetWidth/2+8, r.width-btn.offsetWidth/2-8); btn.style.left=x.toFixed(0)+'px'; };
-  const hide=()=>{ hideT=setTimeout(()=>{ btn.style.display='none'; },140); };
-  hits.forEach(h=>{ h.addEventListener('pointerenter',show); h.addEventListener('pointermove',show); h.addEventListener('pointerleave',hide); });
+  const show=hitEl=>{ clearTimeout(hideT); const wr=wrap.getBoundingClientRect(), hr=hitEl.getBoundingClientRect(); btn.style.display='block'; let x=(hr.left+hr.right)/2-wr.left; x=clamp(x, btn.offsetWidth/2+8, wr.width-btn.offsetWidth/2-8); btn.style.left=x.toFixed(0)+'px'; };
+  const hide=()=>{ hideT=setTimeout(()=>{ btn.style.display='none'; },160); };
+  hits.forEach(h=>{ h.addEventListener('pointerenter',()=>show(h)); h.addEventListener('pointerleave',hide); });
   btn.addEventListener('pointerenter',()=>clearTimeout(hideT)); btn.addEventListener('pointerleave',hide); }
 function chartSvg(){
   const G=graphStyle();                              // imported Graph Lab design (or shipped default)
@@ -1584,7 +1586,7 @@ function render(){
 
   const head='<div class="top">'+gem
     +'<div class="hgroup"><h1 class="htitle"><span class="maskLine"><span class="lineInner'+(titleRevealed?'':' reveal')+'">Your <em>peak</em> today</span></span></h1><p class="hdate">'+esc(dateStr)+'</p></div>'
-    +'</div>';
+    +'<a class="backLink" href="index.html">← Dashboard</a></div>';
   titleRevealed=true; // subsequent re-renders show the title static (no re-flip)
 
   const srcRow='<div class="srcRow"><span class="srcLab">Source</span>'+pill('manual','Manual')+pill('whoop','Whoop')+pill('apple','Apple Watch')+'</div>';
@@ -1699,7 +1701,7 @@ function caffeineCardHtml(){
     + searchBlock
     + caffLogsHtml()
     +'<div class="cafTip'+(tip.warn?' warn':'')+'"><span class="cafTipIcon">'+tip.icon+'</span><span class="cafTipTxt">'+tip.txt+'</span></div>'
-    +''
+    +'<a class="trackLink" href="stimulant.html">Open Caffeine tracker →</a>'
     +'</div>';
 }
 function caffLogsHtml(){
@@ -1912,6 +1914,20 @@ setInterval(tickCountdowns, 1000); // live countdowns (now-running / free / bedt
 </script>
 <script>
 /* brand.js (inlined for standalone) */
+/* ============================================================
+ * brand.js — the suite wordmark = the CURRENT USER'S name.
+ *
+ * Every page ships with the literal wordmark "Liam" (titles, the
+ * "← back" links, the live tickers, aria-labels). This swaps that
+ * wordmark for the name saved in the onboarding profile
+ * (patron_profile_v1), falling back to "Dashboard" until one is set.
+ *
+ * It runs on load AND re-applies after the page's own JS re-renders
+ * (via a MutationObserver), so JS-built markup stays branded too.
+ * If the user's name actually IS "Liam", it's a no-op.
+ *
+ * Include once per page, anywhere after <body> opens (we add it last).
+ * ============================================================ */
 (function () {
   var WORDMARK = 'Liam'; // the literal baked into every page's markup
   function brand() {
@@ -1972,7 +1988,6 @@ setInterval(tickCountdowns, 1000); // live countdowns (now-running / free / bedt
     if (e.key === 'patron_profile_v1' || e.key === null) run();
   });
 })();
-
 </script>
 </body>
 </html>
