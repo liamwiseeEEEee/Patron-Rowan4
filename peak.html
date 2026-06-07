@@ -190,6 +190,12 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
 .schPill.dragging{ cursor:grabbing; transition:none; z-index:6; box-shadow:0 8px 22px -8px rgba(0,0,0,.9); }
 .schPill.gap{ opacity:.82; cursor:default; }
 .schPill.gap.glass, .schPill.gap.outline{ border-style:dashed; }
+.schPill.locked{ cursor:default; }
+/* lock toggle pinned to the bottom of each task's band */
+.schLock{ position:absolute; transform:translateX(-50%); z-index:5; pointer-events:auto; cursor:pointer; width:22px; height:21px; display:grid; place-items:center; font-size:10px; line-height:1; padding:0; background:rgba(4,6,5,.7); border:1px solid var(--line); border-radius:7px; transition:border-color .15s, transform .12s; }
+.schLock:hover{ transform:translateX(-50%) scale(1.12); }
+.schLock.on{ border-color:rgba(255,255,255,.32); }
+.schLock:not(.on){ border-color:rgba(110,231,183,.55); box-shadow:0 0 10px -3px var(--accent); }
 .crashMarks{ position:absolute; left:0; right:0; bottom:34px; height:0; pointer-events:none; }
 .crashMark{ position:absolute; transform:translateX(-50%); font-family:var(--mono); font-size:9px; letter-spacing:.04em; color:#fca5a5; white-space:nowrap; background:var(--panel2); border:1px solid rgba(239,68,68,.45); border-radius:7px; padding:3px 8px; }
 .sleepPlan{ display:flex; align-items:center; gap:12px; flex-wrap:wrap; padding:11px 15px; margin-bottom:16px; border:1px solid var(--line); border-radius:var(--radius-sm); background:rgba(255,255,255,.02); }
@@ -774,7 +780,7 @@ function parseTask(str){
     durH=durH||1; if(explicit){ end=start+durH; }
   }
   s=s.replace(/\b(hard|intense|deep|heavy|max|pr|grind|easy|chill|light|admin|rest|relax|recover|medium|med|moderate|fill|full|at|from)\b/ig,' ').replace(/\s+/g,' ').trim();
-  return {id:'k_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),label:(s||'Task'),diff,durH:durH||1,explicit,start,end,fill:fillFlag};
+  return {id:'k_'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),label:(s||'Task'),diff,durH:durH||1,explicit,locked:explicit,start,end,fill:fillFlag};
 }
 function taskDur(t){ return (t&&t.durH&&t.durH>0)?t.durH:((t&&t.start!=null&&t.end!=null)?Math.max(0.25,t.end-t.start):1); }
 function fixedTasks(){ return loadSched().filter(t=>!t.gap); }
@@ -784,7 +790,7 @@ function freeWithin(a,b,occupied){ let segs=[[a,b]];
 /* expand the raw items (fixed tasks + gap rules) into the actual timeline segments:
  * gaps fill free time and split around fixed tasks (and earlier gaps). */
 function effectiveSegments(){ const items=loadSched(); const {wake,bed}=wakeBed(); const SMALL_MAX=1.5;
-  const fixed=items.filter(t=>!t.gap).map(t=>({id:t.id,label:t.label,diff:t.diff,start:t.start,end:t.end,gap:false,ruleId:t.id,explicit:t.explicit}));
+  const fixed=items.filter(t=>!t.gap).map(t=>({id:t.id,label:t.label,diff:t.diff,start:t.start,end:t.end,gap:false,ruleId:t.id,explicit:t.explicit,locked:(t.locked!=null?!!t.locked:!!t.explicit)}));
   const occupied=fixed.map(f=>({start:f.start,end:f.end})); const segs=fixed.slice();
   function fill(rule,onlySmall){ const a=Math.max(rule.rStart!=null?rule.rStart:wake,wake), b=Math.min(rule.rEnd!=null?rule.rEnd:bed,bed);
     freeWithin(a,b,occupied).forEach(g=>{ if(onlySmall&&(g[1]-g[0])>SMALL_MAX)return; const seg={id:rule.id+'_'+occupied.length,label:rule.label,diff:rule.diff,start:g[0],end:g[1],gap:true,ruleId:rule.id}; segs.push(seg); occupied.push({start:g[0],end:g[1]}); }); }
@@ -874,8 +880,9 @@ function schOverlayHtml(){ const s=schedStyle(); const segs=effectiveSegments();
     const band='<div class="schBand'+(s.bd?' bd':'')+(t.gap?' gap':'')+'" style="left:'+x0.toFixed(2)+'%;width:'+w.toFixed(2)+'%;bottom:'+bottomPct+'%;background:'+bg+';border-radius:'+s.rad+'px '+s.rad+'px 0 0;--bc:'+toRGBA(col,.5)+'"></div>';
     const center=clamp((t.start+t.end)/2/24*100,7,93);
     const durHtml=(s.dur&&!t.gap)?'<span class="pillDur">'+pillDur(t)+'</span>':'';
-    const pill='<div class="schPill '+s.pill+' '+s.pos+(t.gap?' gap':'')+'"'+(t.gap?'':' data-taskid="'+t.id+'"')+' style="left:'+center.toFixed(2)+'%;--pc:'+col+'"><span class="pillNm">'+esc(keyword(t.label))+'</span>'+durHtml+(t.gap?'':'<span class="pillGrip">⠿</span>')+'</div>';
-    return band+pill;
+    const pill='<div class="schPill '+s.pill+' '+s.pos+(t.gap?' gap':(t.locked?' locked':''))+'"'+(t.gap?'':' data-taskid="'+t.id+'"')+' style="left:'+center.toFixed(2)+'%;--pc:'+col+'"><span class="pillNm">'+esc(keyword(t.label))+'</span>'+durHtml+((t.gap||t.locked)?'':'<span class="pillGrip">⠿</span>')+'</div>';
+    const lock=t.gap?'':'<button class="schLock'+(t.locked?' on':'')+'" data-lock="'+t.id+'" style="left:'+center.toFixed(2)+'%;bottom:calc('+bottomPct+'% + 6px)" title="'+(t.locked?'Locked — click to unlock & drag':'Movable — click to lock at this time')+'">'+(t.locked?'🔒':'🔓')+'</button>';
+    return band+pill+lock;
   }).join(''); }
 function keyword(label){ return String(label).trim().split(/\s+/).slice(0,2).join(' ').slice(0,16); }
 function armRectSvg(){ const g=schGapWindow(); if(!g||!(g.hi>g.lo+0.05))return ''; const x0=xOf(g.lo),x1=xOf(g.hi);
@@ -884,6 +891,7 @@ function taskMarksHtml(){ const segs=effectiveSegments(); if(!segs.length)return
 function bindTaskDrag(){ const wrap=document.getElementById('chartWrap'), svg=document.getElementById('chartSvg'); if(!wrap||!svg)return;
   wrap.querySelectorAll('.schPill[data-taskid]').forEach(el=>{ el.addEventListener('pointerdown',e=>{
     e.preventDefault(); const id=el.dataset.taskid; const tasks=loadSched(); const t=tasks.find(x=>x.id===id); if(!t)return;
+    if(t.locked!=null?t.locked:t.explicit){ return; } // locked tasks stay put — unlock to drag
     const dur=taskDur(t); const others=tasks.filter(x=>!x.gap&&x.id!==id); const r=svg.getBoundingClientRect(); el.classList.add('dragging'); let ns=t.start;
     function move(ev){ if(ev.cancelable)ev.preventDefault(); const x=clamp(((ev.touches?ev.touches[0].clientX:ev.clientX)-r.left)/r.width,0,1); let st=x*24-dur/2; ns=snapFree(st,dur,others); el.style.left=clamp(((ns+dur/2)/24)*100,7,93)+'%'; }
     function up(){ document.removeEventListener('pointermove',move); document.removeEventListener('pointerup',up); document.removeEventListener('touchmove',move); document.removeEventListener('touchend',up); el.classList.remove('dragging'); t.start=ns; t.end=Math.min(24,ns+dur); t.durH=dur; t.explicit=true; tasks.sort((a,b)=>a.start-b.start); saveSched(tasks); }
@@ -1465,6 +1473,7 @@ document.addEventListener('click',e=>{
   const rs=e.target.closest('[data-rmsched]'); if(rs){ removeSched(rs.dataset.rmsched); return; }
   const gt=e.target.closest('[data-gaptask]'); if(gt){ regapTask(gt.dataset.gaptask); return; }
   const acp=e.target.closest('[data-armchip]'); if(acp){ schArmChip(acp.dataset.armchip); return; }
+  const lk=e.target.closest('[data-lock]'); if(lk){ const tasks=loadSched(); const t=tasks.find(x=>x.id===lk.dataset.lock); if(t){ const cur=(t.locked!=null?t.locked:!!t.explicit); t.locked=!cur; saveSched(tasks); } return; }
   const scf=e.target.closest('[data-schcf]'); if(scf){ const m=scf.dataset.schcf; if(m==='fit')schApply('fit'); else if(m==='override')schApply('override'); else { schPending=null; render(); } return; }
   if(e.target.closest('[data-workout]')){ workoutOpen=!workoutOpen; render(); return; }
   const aw=e.target.closest('[data-addworkout]'); if(aw){ workoutOpen=false; addWorkout(parseFloat(aw.dataset.addworkout)); return; }

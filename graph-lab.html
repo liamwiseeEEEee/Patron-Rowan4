@@ -38,6 +38,11 @@
     padding:14px 22px; backdrop-filter:blur(14px); background:rgba(0,0,0,.62); border-bottom:1px solid var(--line);
   }
   .bar h1 { font-family:var(--serif); font-style:italic; font-weight:400; font-size:22px; margin:0 6px 0 0; }
+  .topbar { display:flex; align-items:center; gap:16px; padding:14px 22px; border-bottom:1px solid var(--line); }
+  .topbar h1 { font-family:var(--serif); font-style:italic; font-weight:400; font-size:24px; margin:0; }
+  .nav { display:flex; gap:8px; margin-left:auto; }
+  .nav a { font-size:13px; color:var(--muted); text-decoration:none; padding:7px 12px; border:1px solid var(--line); border-radius:9px; }
+  .nav a:hover, .nav a.on { color:var(--mint); border-color:rgba(110,231,183,.35); }
   .grp { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); }
   .grp > label { letter-spacing:.04em; text-transform:uppercase; font-size:11px; }
   select, .grp select {
@@ -185,10 +190,15 @@
 </style>
 </head>
 <body>
-  <div class="bar">
+  <div class="topbar">
     <h1>Graph Lab</h1>
-    <a href="text-lab.html" style="font-size:12px;color:var(--muted);text-decoration:none">Text</a>
-    <a href="schedule-lab.html" style="font-size:12px;color:var(--muted);text-decoration:none">Schedule</a>
+    <div class="nav">
+      <a href="text-lab.html">Text</a>
+      <a href="graph-lab.html" class="on">Graph</a>
+      <a href="schedule-lab.html">Schedule</a>
+    </div>
+  </div>
+  <div class="bar">
     <div class="grp">
       <label>Color</label>
       <div class="swatches" id="swatches"></div>

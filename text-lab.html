@@ -40,6 +40,11 @@
     background:rgba(0,0,0,.6); border-bottom:1px solid var(--line);
   }
   .bar h1 { font-family:var(--serif); font-style:italic; font-weight:400; font-size:22px; margin:0 12px 0 0; }
+  .topbar { display:flex; align-items:center; gap:16px; padding:14px 22px; border-bottom:1px solid var(--line); }
+  .topbar h1 { font-family:var(--serif); font-style:italic; font-weight:400; font-size:24px; margin:0; }
+  .nav { display:flex; gap:8px; margin-left:auto; }
+  .nav a { font-size:13px; color:var(--muted); text-decoration:none; padding:7px 12px; border:1px solid var(--line); border-radius:9px; }
+  .nav a:hover, .nav a.on { color:var(--mint); border-color:rgba(110,231,183,.35); }
   .bar input[type=text] {
     flex:1; min-width:220px; background:var(--card); border:1px solid var(--line);
     color:var(--fg); font-family:var(--ui); font-size:15px; padding:9px 14px; border-radius:10px;
@@ -145,8 +150,15 @@
 </style>
 </head>
 <body data-font="serif">
-  <div class="bar">
+  <div class="topbar">
     <h1>Text Lab</h1>
+    <div class="nav">
+      <a href="text-lab.html" class="on">Text</a>
+      <a href="graph-lab.html">Graph</a>
+      <a href="schedule-lab.html">Schedule</a>
+    </div>
+  </div>
+  <div class="bar">
     <input id="text" type="text" value="Welcome back, Rowan" placeholder="type the title / tile text…" />
     <div class="seg" id="fontSeg">
       <button data-font="serif" class="on">Serif</button>
