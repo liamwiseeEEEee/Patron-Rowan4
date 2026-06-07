@@ -482,6 +482,10 @@ var TASKS=[
   { id:'t3', name:'Homework', start:13,  end:15.5, color:'#F59E0B', icon:'✎', diff:'hard', explicit:true, locked:false },
   { id:'t4', name:'Wind down',start:21.5,end:23,   color:'#38BDF8', icon:'☾', diff:'easy', explicit:true, locked:true }
 ];
+// remember whatever you add/edit/drag — restore it next time the lab opens
+var TASKS_KEY='rowan4_sched_tasks_v1';
+try{ var _savedTasks=JSON.parse(localStorage.getItem(TASKS_KEY)||'null'); if(_savedTasks&&Array.isArray(_savedTasks)&&_savedTasks.length) TASKS=_savedTasks; }catch(e){}
+function saveTasks(){ try{ localStorage.setItem(TASKS_KEY, JSON.stringify(TASKS)); }catch(e){} }
 
 /* ---------- style state ---------- */
 var S={ fill:'grad', colorMode:'auto', acc:'#6EE7B7', op:0.18, rad:10, pill:'glass', pos:'top', bd:true, icon:true, dur:true, now:true, valcol:false, nowH:13.46, bed:22.75 };
@@ -888,7 +892,7 @@ Object.keys(PRESETS2).forEach(function(name){ var b=document.createElement('butt
 
 // keep the UI kit in sync on any task / accent / style change (all flow through drawBands)
 var _drawBands=drawBands;
-drawBands=function(){ _drawBands(); drawUIKit(); };
+drawBands=function(){ _drawBands(); drawUIKit(); saveTasks(); };
 
 // chips: drag to reorder, click × to remove
 (function(){
