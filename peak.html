@@ -772,6 +772,11 @@ const DEFAULT_SCHED=[
 /* one-time cleanup: physically drop a schedule saved by an older build (seed
  * mismatch) so stale/overlapping tasks can't linger in localStorage. */
 try{ const _r=readLS(SCHED); if(_r&&_r.seed!==SCHED_SEED){ localStorage.removeItem(SCHED); } }catch(e){}
+/* one-time hard reset: clears any saved schedule (and its dead cloud mirror) ONCE
+ * per browser, then sets a flag so your later edits stick. Bump SCHED_NUKE to force
+ * a fresh wipe everywhere — used to clear the stuck 6:45 schedule on existing devices. */
+const SCHED_NUKE='peak_sched_nuke_v1';
+try{ if(localStorage.getItem('peak_sched_nuked')!==SCHED_NUKE){ localStorage.removeItem(SCHED); localStorage.removeItem('patron_db_peaksched'); localStorage.setItem('peak_sched_nuked',SCHED_NUKE); } }catch(e){}
 function loadSched(){ const r=readLS(SCHED); return (r&&r.seed===SCHED_SEED&&r.day===dKey()&&Array.isArray(r.tasks))?r.tasks:DEFAULT_SCHED.map(t=>Object.assign({},t)); }
 function saveSched(tasks){ try{ localStorage.setItem(SCHED,JSON.stringify({day:dKey(),seed:SCHED_SEED,tasks})); }catch(e){} if(window.PatronDB&&PatronDB.isCloud())PatronDB.set('peaksched',{day:dKey(),seed:SCHED_SEED,tasks}); render(); }
 function diffOf(s){ if(/\b(hard|intense|deep|heavy|max|pr|grind)\b/i.test(s))return 'hard'; if(/\b(easy|chill|light|admin|rest|relax|recover)\b/i.test(s))return 'easy'; return 'med'; }
