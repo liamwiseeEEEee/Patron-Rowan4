@@ -109,6 +109,18 @@ body{ background:var(--vk-bg); color:var(--vk-fg); font-family:'Inter',-apple-sy
 .mn-pulseRing .pf{ fill:none; stroke:var(--vk-mint); stroke-width:3; stroke-linecap:round; filter:drop-shadow(0 0 4px var(--vk-mint)); }
 .mn-pulseCount{ position:relative; z-index:1; font-family:var(--en-mono); font-size:11px; color:var(--vk-fg); }
 .mn-hint{ font-family:var(--en-mono); font-size:10px; color:var(--vk-muted); font-style:normal; }
+.mn-head{ display:flex; align-items:center; justify-content:space-between; gap:12px; flex-wrap:wrap; margin-bottom:16px; }
+.mn-headDate{ font-family:var(--en-mono); font-size:10px; letter-spacing:.1em; text-transform:uppercase; color:var(--vk-muted-strong); }
+.mn-dayRow{ display:flex; gap:9px; overflow-x:auto; padding:2px 2px 8px; margin:0 0 18px; scrollbar-width:none; }
+.mn-dayRow::-webkit-scrollbar{ display:none; }
+.mn-dayCard{ flex:0 0 auto; width:62px; cursor:pointer; border:1px solid var(--vk-border); border-radius:14px; background:rgba(255,255,255,.02); padding:10px 0; text-align:center; transition:border-color var(--vk-duration) var(--vk-ease), background var(--vk-duration) var(--vk-ease); }
+.mn-dayCard:hover{ border-color:var(--vk-border-strong); }
+.mn-dayCard.on{ border-color:var(--vk-mint); background:rgba(110,231,183,.08); }
+.mn-dayCard.today .mn-dayWk{ color:var(--vk-mint); }
+.mn-dayWk{ font-family:var(--en-mono); font-size:9px; letter-spacing:.12em; text-transform:uppercase; color:var(--vk-muted); }
+.mn-dayNum{ font-family:var(--vk-font-serif),serif; font-size:20px; color:var(--vk-fg); margin:3px 0 6px; line-height:1; }
+.mn-dayScore{ width:30px; height:30px; margin:0 auto; border-radius:50%; display:grid; place-items:center; font-family:var(--en-mono); font-size:11px; font-weight:600; border:2px solid var(--dsc,rgba(255,255,255,.1)); color:var(--dsc,var(--vk-muted)); }
+.mn-dayScore.mn-dayEmpty{ border-style:dashed; }
 @media (max-width:520px){ .mn-rateLab{ width:100%; } }
 
 /* ---------- live ticker ---------- */
@@ -459,15 +471,45 @@ const BAND=(function(){
   /* Hooper-index readiness from the five 1–5 ratings (matches Peak's subjReadiness) */
   function mnSubjReadiness(s){ if(!s)return null; const up=v=>(v-1)/4*100,down=v=>(5-v)/4*100; const parts=[],w=[]; if(s.sleepQ){parts.push(up(s.sleepQ));w.push(0.30);} if(s.energy){parts.push(up(s.energy));w.push(0.25);} if(s.soreness){parts.push(down(s.soreness));w.push(0.20);} if(s.stress){parts.push(down(s.stress));w.push(0.15);} if(s.mood){parts.push(up(s.mood));w.push(0.10);} if(!parts.length)return null; const sw=w.reduce((a,b)=>a+b,0); let x=0; for(let i=0;i<parts.length;i++)x+=parts[i]*w[i]; return Math.max(1,Math.min(99,Math.round(x/sw))); }
 
-  let manualData=null, editingManual=false, mDraft=null;
+  /* per-day check-in log — shared with the Peak tracker so a check-in entered
+     in either app shows up in both. */
+  const MN_LOG_KEY='peak_log_v1';
+  let manualData=null, mDraft=null, mnSelected=null;
+  function mnDayKey(d){ d=d||new Date(); return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+  function mnLoadLog(){ const r=readLS(MN_LOG_KEY); return (r&&r.days)?r:{days:{}}; }
+  function mnSaveLog(l){ try{ localStorage.setItem(MN_LOG_KEY,JSON.stringify(l)); }catch(e){} if(window.PatronDB&&PatronDB.isCloud())PatronDB.set('peaklog',l); }
+  function mnBlankDraft(){ return {sleepQ:null,energy:null,mood:null,soreness:null,stress:null,wakeTime:null,sleepHours:null,rhr:null}; }
+  function mnToneColor(v){ if(v==null)return 'var(--vk-muted)'; if(v>=67)return 'var(--vk-mint)'; if(v>=34)return 'var(--vk-amber)'; return 'var(--vk-red)'; }
   function loadManual(){ try{ const cur=JSON.parse(localStorage.getItem(HEALTH_KEY)||'null'); if(cur&&cur.source==='manual')manualData=cur; }catch(e){} }
-  function ensureMDraft(){ if(mDraft)return; const a=manualData||{}; mDraft={ sleepQ:a.sleepQ||null,energy:a.energy||null,mood:a.mood||null,soreness:a.soreness||null,stress:a.stress||null,wakeTime:a.wakeTime||null,sleepHours:(a.sleepHours!=null?a.sleepHours:null),rhr:(a.rhr!=null?a.rhr:null) }; }
-  function clearManual(){ manualData=null; mDraft=null; try{ const cur=JSON.parse(localStorage.getItem(HEALTH_KEY)||'null'); if(cur&&cur.source==='manual')localStorage.removeItem(HEALTH_KEY); }catch(e){} }
+  // (re)build the working draft from the log entry for the selected day
+  function mnLoadDraft(){ if(!mnSelected)mnSelected=mnDayKey(); const d=mnLoadLog().days[mnSelected]; mDraft = d?Object.assign(mnBlankDraft(),d):mnBlankDraft(); mnPrefill(); }
+  function ensureMDraft(){ if(!mDraft)mnLoadDraft(); }
+  // carry over the most recent wake/hours so a fresh day pre-fills the sleep chips
+  function mnPrefill(){ if(mDraft.wakeTime!=null||mDraft.sleepHours!=null)return; const log=mnLoadLog(); const keys=Object.keys(log.days).sort(); for(let i=keys.length-1;i>=0;i--){ const d=log.days[keys[i]]; if(d&&(d.wakeTime||d.sleepHours)){ if(mDraft.wakeTime==null)mDraft.wakeTime=d.wakeTime||null; if(mDraft.sleepHours==null)mDraft.sleepHours=d.sleepHours||null; break; } } }
+  function clearManual(){
+    // wipe the selected day's log entry + the suite vitals if they came from manual
+    const log=mnLoadLog(); if(mnSelected&&log.days[mnSelected]){ delete log.days[mnSelected]; mnSaveLog(log); }
+    mDraft=null;
+    if(mnSelected===mnDayKey()){ manualData=null; try{ const cur=JSON.parse(localStorage.getItem(HEALTH_KEY)||'null'); if(cur&&cur.source==='manual')localStorage.removeItem(HEALTH_KEY); }catch(e){} }
+  }
   function mnCaptureRhr(){ const el=document.getElementById('mn-rhr'); if(el&&mDraft){ const n=Number(el.value); mDraft.rhr=(el.value!==''&&isFinite(n))?n:null; } }
   function mnRateRow(field,label,opts,warn){ ensureMDraft(); const cur=mDraft[field]; const chips=opts.map((t,i)=>{ const v=i+1; return '<button type="button" class="mn-chip'+(warn?' warnOn':'')+(cur===v?' on':'')+'" data-mrate="'+field+'" data-val="'+v+'">'+v+'</button>'; }).join(''); const word=cur?'<span class="mn-chipWord">'+esc(opts[cur-1])+'</span>':''; return '<div class="mn-rateRow"><span class="mn-rateLab">'+esc(label)+'</span><div class="mn-chips">'+chips+word+'</div></div>'; }
-  function manualFormHtml(){
+  function mnDayCards(){
+    const log=mnLoadLog(); const out=[]; const today=mnDayKey();
+    for(let i=6;i>=0;i--){ const d=new Date(); d.setDate(d.getDate()-i); const k=mnDayKey(d);
+      const wk=d.toLocaleDateString('en-US',{weekday:'short'}).toUpperCase();
+      const rec=(log.days[k]&&log.days[k].readiness!=null)?log.days[k].readiness:null;
+      const score=rec!=null?'<div class="mn-dayScore" style="--dsc:'+mnToneColor(rec)+'">'+Math.round(rec)+'</div>':'<div class="mn-dayScore mn-dayEmpty">·</div>';
+      out.push('<button type="button" class="mn-dayCard'+(k===mnSelected?' on':'')+(k===today?' today':'')+'" data-mday="'+k+'"><div class="mn-dayWk">'+(k===today?'TODAY':wk)+'</div><div class="mn-dayNum">'+d.getDate()+'</div>'+score+'</button>');
+    }
+    return '<div class="mn-dayRow">'+out.join('')+'</div>';
+  }
+  // the full "Daily check-in" card — day picker + ratings + sleep + pulse
+  function manualPanelHtml(){
     ensureMDraft();
-    const savedNote=manualData?'<p class="connectSub">Editing today’s check-in.</p>':'';
+    const isToday=mnSelected===mnDayKey();
+    const dObj=new Date(mnSelected+'T12:00:00');
+    const dateLabel=dObj.toLocaleDateString('en-US',{weekday:'long',month:'long',day:'numeric'});
     const ratings=MN_RATINGS.map(r=>mnRateRow(r[0],r[1],r[2],r[3])).join('');
     const wakeChips=MN_WAKE.map(t=>'<button type="button" class="mn-chip'+(mDraft.wakeTime===t?' on':'')+'" data-mwake="'+t+'">'+mnClock(mnHmToFloat(t))+'</button>').join('');
     const hrChips=MN_HRS.map(v=>'<button type="button" class="mn-chip'+(mDraft.sleepHours===v?' on':'')+'" data-mhrs="'+v+'">'+v+'</button>').join('');
@@ -475,8 +517,12 @@ const BAND=(function(){
     const derived=(mDraft.wakeTime&&mDraft.sleepHours!=null)
       ? '<div class="mn-derived">→ In bed around <b>'+mnClock(mnHmToFloat(bed))+'</b> · <b>'+mDraft.sleepHours+'h</b> sleep</div>'
       : '<div class="mn-derived">Pick a wake time + hours and we work out your bedtime.</div>';
-    return '<p class="connectIntro">No band? Rate <em>how you feel</em> and log your sleep. Liam turns it into a readiness score (Hooper index) that feeds the same dashboard and supplement picks.</p>'+savedNote
-      + '<p class="mn-block">How you feel today</p>'+ratings
+    const saved=mnLoadLog().days[mnSelected];
+    const saveLabel=isToday?'Save today’s readiness':'Save '+dObj.toLocaleDateString('en-US',{month:'short',day:'numeric'});
+    return '<section class="en-card">'
+      + '<div class="mn-head"><p class="en-eyebrow" style="margin:0">Daily check-in</p><span class="mn-headDate">'+esc(dateLabel)+'</span></div>'
+      + mnDayCards()
+      + '<p class="mn-block">How you feel '+(isToday?'today':'that day')+'</p>'+ratings
       + '<p class="mn-block">Sleep</p>'
       + '<div class="mn-rateRow"><span class="mn-rateLab">Woke at</span><div class="mn-chips">'+wakeChips+'</div></div>'
       + '<div class="mn-rateRow"><span class="mn-rateLab">Hours slept</span><div class="mn-chips">'+hrChips+'</div></div>'
@@ -486,8 +532,8 @@ const BAND=(function(){
       + '<button type="button" class="mn-pulseBtn" data-mpulse="10">10s</button><button type="button" class="mn-pulseBtn" data-mpulse="30">30s</button>'
       + '<span class="mn-pulseRing" id="mnPulseRing"><svg viewBox="0 0 34 34"><circle class="pt" cx="17" cy="17" r="14"/><circle class="pf" id="mnPulseFill" cx="17" cy="17" r="14"/></svg><span class="mn-pulseCount" id="mnPulseCount"></span></span>'
       + '<span class="mn-hint" id="mnPulseHint">tap 10s/30s &amp; count beats</span></div></div>'
-      + '<p class="setupNote"><strong>How it works:</strong> with no band, your <em>readiness</em> comes from how you feel + sleep (the Hooper index). Saved into the suite tagged <strong>Manual</strong>, same as a band reading.</p>'
-      + '<div class="formActions">'+(manualData?'<button type="button" class="en-link" data-action="remove-manual">remove</button>':'')+'<button type="button" class="en-btn" data-action="save-manual">'+(manualData?'Update check-in':'Save check-in')+'</button></div>';
+      + '<div class="formActions" style="margin-top:18px">'+(saved?'<button type="button" class="en-link" data-action="remove-manual">remove this day</button>':'')+'<button type="button" class="en-btn" style="flex:1" data-action="save-manual">'+saveLabel+'</button></div>'
+      + '</section>';
   }
   function saveManualEntry(){
     ensureMDraft(); mnCaptureRhr();
@@ -497,8 +543,14 @@ const BAND=(function(){
     const target=8;
     const sleepPerf=sleepHours!=null?Math.round(Math.min(100,sleepHours/target*100)):null;
     const bedtime=mnDeriveBed(wakeTime,sleepHours);
-    const snap={ source:'manual',connected:true,ts:Date.now(),recovery:readiness,subjective:readiness!=null,sleepQ,energy,mood,soreness,stress,sleepHours,sleepPerf,sleepTargetHours:target,bedtime,wakeTime,hrv:null,rhr,strain:null };
-    manualData=snap; try{localStorage.setItem(HEALTH_KEY,JSON.stringify(snap));}catch(e){} editingManual=false; refresh();
+    // 1) write to the per-day log (shared with Peak)
+    const log=mnLoadLog(); log.days[mnSelected]={sleepQ,energy,mood,soreness,stress,wakeTime,sleepHours,bedtime,rhr,readiness,sleepPerf,ts:Date.now()}; mnSaveLog(log);
+    // 2) if it's today, publish to the suite vitals so the dashboard + other apps update
+    if(mnSelected===mnDayKey()){
+      const snap={ source:'manual',connected:true,ts:Date.now(),recovery:readiness,subjective:readiness!=null,sleepQ,energy,mood,soreness,stress,sleepHours,sleepPerf,sleepTargetHours:target,bedtime,wakeTime,hrv:null,rhr,strain:null };
+      manualData=snap; try{localStorage.setItem(HEALTH_KEY,JSON.stringify(snap));}catch(e){}
+    }
+    refresh();
   }
   /* pulse-counter: a ring fills over 10s/30s; you count beats, it → BPM */
   let mnPulseIntv=null;
@@ -571,7 +623,7 @@ const BAND=(function(){
       + '<div class="formActions">'+(appleData?'<button type="button" class="en-link" data-action="remove-apple">remove</button>':'')+'<button type="button" class="en-btn" data-action="save-apple">Save readings</button></div>';
   }
   function connectPanelHtml(){
-    const body=connectSource==='manual'?manualFormHtml():connectSource==='apple'?appleFormHtml():connectSource==='fitbit'?fitbitConnectBodyHtml():whoopConnectBodyHtml();
+    const body=connectSource==='apple'?appleFormHtml():connectSource==='fitbit'?fitbitConnectBodyHtml():whoopConnectBodyHtml();
     return '<section class="en-card"><p class="en-eyebrow">Connect a source</p>'+sourceTabsHtml()+'<div style="margin-top:16px">'+body+'</div></section>';
   }
 
@@ -590,7 +642,7 @@ const BAND=(function(){
     if(liveData){ d=liveData; kind='whoop-live'; }
     else if(fitbitData){ d=fitbitData; kind='fitbit-live'; }
     else if(appleData&&!editingApple){ d=buildLiveData(appleData); kind='apple'; }
-    else if(manualData&&!editingManual){ d=buildLiveData(manualData); kind='manual'; }
+    else if(manualData){ d=buildLiveData(manualData); kind='manual'; }
     else if(!ON_SERVER&&connected){ d=SAMPLE; kind='sample'; }
     activeKind=kind;
     if(kind==='whoop-live')publishWhoopData(liveData);
@@ -603,6 +655,11 @@ const BAND=(function(){
   function html(){
     const { d, kind }=resolve();
     let out='<div class="fb-band">'+sourceTabsHtml();
+    // Manual is a fill-in-every-day check-in — always show the form when it's the
+    // chosen source, regardless of any other saved/sample data.
+    if(connectSource==='manual'){
+      return out+manualPanelHtml()+'</div>';
+    }
     if(d){
       if(kind==='sample')out+='<div class="statusChip sample"><span class="pulse" aria-hidden></span>Sample data · connect WHOOP for live numbers</div>';
       else if(kind==='apple')out+='<div class="statusChip"><span class="pulse" aria-hidden></span>Apple Health · entered manually</div>';
@@ -628,14 +685,15 @@ const BAND=(function(){
     const mw=e.target.closest('[data-mwake]'); if(mw){ ensureMDraft(); mnCaptureRhr(); mDraft.wakeTime=(mDraft.wakeTime===mw.dataset.mwake?null:mw.dataset.mwake); renderPanel(); return; }
     const mh=e.target.closest('[data-mhrs]'); if(mh){ ensureMDraft(); mnCaptureRhr(); const v=+mh.dataset.mhrs; mDraft.sleepHours=(mDraft.sleepHours===v?null:v); renderPanel(); return; }
     const mp=e.target.closest('[data-mpulse]'); if(mp){ mnStartPulse(parseInt(mp.dataset.mpulse,10)||30); return; }
+    const md=e.target.closest('[data-mday]'); if(md){ mnCaptureRhr(); mnSelected=md.dataset.mday; mnLoadDraft(); renderPanel(); return; }
     const btn=e.target.closest('[data-action]'); if(!btn)return; const action=btn.getAttribute('data-action');
     if(action==='src-tab'){ connectSource=btn.getAttribute('data-src'); renderPanel(); return; }
     if(action==='save-apple'){ saveAppleEntry(); return; }
     if(action==='edit-apple'){ editingApple=true; connectSource='apple'; renderPanel(); return; }
     if(action==='remove-apple'){ if(confirm('Remove your Apple Health readings from the suite?')){ clearApple(); editingApple=false; refresh(); } return; }
     if(action==='save-manual'){ saveManualEntry(); return; }
-    if(action==='edit-manual'){ editingManual=true; connectSource='manual'; mDraft=null; renderPanel(); return; }
-    if(action==='remove-manual'){ if(confirm('Remove your manual check-in from the suite?')){ clearManual(); editingManual=false; refresh(); } return; }
+    if(action==='edit-manual'){ connectSource='manual'; mDraft=null; renderPanel(); return; }
+    if(action==='remove-manual'){ if(confirm('Remove this day’s check-in?')){ clearManual(); refresh(); } return; }
     if(action==='connect'){ setConnected(true); return; }
     if(action==='disconnect'){
       if(activeKind==='fitbit-live'){ fetch('/api/fitbit/logout').catch(()=>{}).then(()=>{ fitbitConnected=false; fitbitData=null; clearFitbitData(); refresh(); }); }
