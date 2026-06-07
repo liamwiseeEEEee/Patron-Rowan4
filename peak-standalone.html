@@ -764,7 +764,7 @@ function optimalSleep(){ const h=health(); const wake=wakeBed().wake; const need
 /* ============================================================
  * Schedule — natural-language tasks mapped onto the peak curve
  * ============================================================ */
-const SCHED='peak_schedule_v1'; let planOpen=false;
+const SCHED='peak_schedule_sa_v1'; let planOpen=false;  // standalone uses its OWN key so it never reads the main app's polluted schedule (localStorage is shared per-domain)
 /* Baked schedule shipped from Schedule Lab — the day's template. SCHED_SEED is
  * bumped every time a new schedule is shipped, so a fresh ship overrides any
  * stale saved tasks once (the file is the source of truth, like the style),
