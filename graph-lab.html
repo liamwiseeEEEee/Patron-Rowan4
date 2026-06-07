@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>Graph Animation Lab · Rowan4</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<style>
+  /* ============================================================
+   * GRAPH ANIMATION LAB
+   * A playground for chart styles / colors / animations in the
+   * rowan4 look. Each card = one render STYLE; the top bar sets
+   * the color theme, animation, dataset + options applied to all.
+   * Workflow: open in a browser, tell Claude "card N, do X",
+   * Claude edits this file, you refresh.
+   * ============================================================ */
+  :root {
+    --bg:#000; --fg:#fff; --mint:#6EE7B7; --mint2:#A7F3D0;
+    --muted:rgba(255,255,255,.5); --line:rgba(255,255,255,.08);
+    --card:rgba(255,255,255,.02); --serif:'Instrument Serif',Georgia,serif;
+    --ui:'Inter',-apple-system,sans-serif; --mono:'JetBrains Mono',monospace;
+    --ease:cubic-bezier(.16,1,.3,1);
+    /* theme colours (overwritten by JS when you pick a colour) */
+    --c:#6EE7B7; --c-soft:rgba(110,231,183,.35); --c-glow:rgba(110,231,183,.6);
+    color-scheme: dark;
+  }
+  * { box-sizing:border-box; }
+  body {
+    margin:0; background:var(--bg); color:var(--fg); font-family:var(--ui); min-height:100vh;
+    background-image:
+      radial-gradient(ellipse 50% 35% at 70% 0%, rgba(110,231,183,.06), transparent 60%),
+      radial-gradient(ellipse 40% 30% at 10% 100%, rgba(110,231,183,.04), transparent 70%);
+  }
+  .bar {
+    position:sticky; top:0; z-index:10; display:flex; flex-wrap:wrap; gap:16px; align-items:center;
+    padding:14px 22px; backdrop-filter:blur(14px); background:rgba(0,0,0,.62); border-bottom:1px solid var(--line);
+  }
+  .bar h1 { font-family:var(--serif); font-style:italic; font-weight:400; font-size:22px; margin:0 6px 0 0; }
+  .grp { display:flex; align-items:center; gap:7px; font-size:12px; color:var(--muted); }
+  .grp > label { letter-spacing:.04em; text-transform:uppercase; font-size:11px; }
+  select, .grp select {
+    background:var(--card); border:1px solid var(--line); color:var(--fg); font-family:var(--ui);
+    font-size:13px; padding:7px 10px; border-radius:9px;
+  }
+  input[type=range] { accent-color:var(--mint); width:90px; }
+  input[type=color] { width:30px; height:26px; padding:0; border:1px solid var(--line); border-radius:7px; background:var(--card); cursor:pointer; }
+  .swatches { display:flex; gap:6px; }
+  .sw { width:20px; height:20px; border-radius:50%; cursor:pointer; border:2px solid transparent; }
+  .sw.on { border-color:#fff; }
+  .toggle { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--muted); cursor:pointer; }
+  .toggle input { accent-color:var(--mint); }
+  .btn { background:var(--mint); color:#04231a; border:none; font-weight:600; font-size:13px; padding:8px 15px; border-radius:9px; cursor:pointer; font-family:var(--ui); }
+  .btn:hover { background:#5dd6a6; }
+
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(420px,1fr)); gap:16px; padding:22px; }
+  .card {
+    position:relative; border:1px solid var(--line); border-radius:16px; background:#050706;
+    overflow:hidden; cursor:pointer; isolation:isolate;
+  }
+  .card:hover { border-color:rgba(110,231,183,.22); }
+  .card .tag { position:absolute; top:12px; left:14px; z-index:3; font-family:var(--mono); font-size:11px; letter-spacing:.04em; color:var(--muted); }
+  .card .replay { position:absolute; top:11px; right:14px; z-index:3; font-size:11px; color:var(--c); opacity:.55; font-family:var(--mono); }
+  .card:hover .replay { opacity:1; }
+  .plot { position:relative; z-index:2; width:100%; aspect-ratio:1000/320; display:block; }
+  .plot svg { width:100%; height:100%; display:block; overflow:visible; }
+
+  /* scrim: subtly darkens the stage so the chart pops in front of the backdrop */
+  .scrim { position:absolute; inset:0; z-index:1; pointer-events:none;
+    background:radial-gradient(ellipse 85% 78% at 50% 62%, rgba(0,0,0,.42), transparent 76%); }
+
+  /* ---- backdrop layer (behind the chart) ---- */
+  .bg { position:absolute; inset:-12%; z-index:0; overflow:hidden; pointer-events:none;
+    transition:transform .25s cubic-bezier(.2,.8,.2,1); will-change:transform; }
+  .bgk-aurora {
+    background:
+      radial-gradient(ellipse 60% 55% at 32% 60%, var(--c-soft), transparent 68%),
+      radial-gradient(ellipse 50% 45% at 75% 38%, var(--c-soft), transparent 70%),
+      linear-gradient(135deg,#0a120e 0%,#050806 100%);
+    opacity:.6;
+  }
+  .bgk-grid {
+    background-image:
+      linear-gradient(rgba(255,255,255,.05) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,.05) 1px, transparent 1px);
+    background-size:26px 26px;
+  }
+  .bgk-dots {
+    background-image: radial-gradient(var(--c-soft) 1.1px, transparent 1.4px);
+    background-size:18px 18px; opacity:.5;
+  }
+  .bgk-mountains svg { position:absolute; left:0; right:0; bottom:0; width:100%; height:62%; display:block; opacity:.7; }
+  .bgk-particles span {
+    position:absolute; width:2px; height:2px; border-radius:50%;
+    background:var(--c); box-shadow:0 0 6px var(--c-glow); opacity:0;
+    animation:gp-drift linear infinite;
+  }
+  @keyframes gp-drift {
+    0%{ transform:translate3d(0,0,0); opacity:0; }
+    12%{ opacity:.8; } 88%{ opacity:.5; }
+    100%{ transform:translate3d(var(--dx,10px),var(--dy,-120px),0); opacity:0; }
+  }
+
+  /* starfield + shooting stars + milky-way band */
+  .bgk-stars { background:radial-gradient(ellipse 90% 70% at 50% -10%, #0a1118, #05070b 78%); }
+  .bgk-stars .milky {
+    position:absolute; left:-20%; right:-20%; top:38%; height:42%;
+    transform:rotate(-18deg); filter:blur(14px); opacity:.5;
+    background:linear-gradient(90deg, transparent, var(--c-soft) 35%, rgba(255,255,255,.10) 50%, var(--c-soft) 65%, transparent);
+  }
+  .bgk-stars .star {
+    position:absolute; border-radius:50%; background:#fff;
+    box-shadow:0 0 4px rgba(255,255,255,.6); animation:twinkle var(--tw,3s) ease-in-out infinite;
+  }
+  .bgk-stars .star.tint { background:var(--c); box-shadow:0 0 5px var(--c-glow); }
+  @keyframes twinkle { 0%,100%{ opacity:.18; } 50%{ opacity:.95; } }
+  .bgk-stars .shoot {
+    position:absolute; width:90px; height:2px; border-radius:2px; opacity:0;
+    background:linear-gradient(90deg, transparent, #fff 60%, var(--c));
+    box-shadow:0 0 8px var(--c-glow);
+    animation:shoot var(--sd,7s) ease-in infinite; animation-delay:var(--sdelay,0s);
+  }
+  @keyframes shoot {
+    0%   { opacity:0; transform:translate(0,0) rotate(20deg) scaleX(.2); }
+    6%   { opacity:1; }
+    16%  { opacity:1; }
+    30%  { opacity:0; transform:translate(260px,95px) rotate(20deg) scaleX(1); }
+    100% { opacity:0; transform:translate(260px,95px) rotate(20deg) scaleX(1); }
+  }
+
+  /* ---- 3D tilt mode ---- */
+  .plot { transition:transform .45s var(--ease); }
+  .plot.is3d { transform:perspective(1200px) rotateX(var(--tdeg,34deg)) scale(.88); transform-origin:50% 92%; }
+  .plot.is3d svg { filter:drop-shadow(0 22px 24px rgba(0,0,0,.6)); }
+  /* extruded thickness wall under the line (stacked copies, darker) */
+  .extrude path { fill:none; stroke:var(--c-deep); stroke-linejoin:round; stroke-linecap:round; }
+  .an-draw .extrude { opacity:0; animation:gFade var(--dur,1.6s) ease forwards; }
+
+  /* axis text + gridlines */
+  .axisLabel { fill:var(--muted); font-family:var(--mono); font-size:13px; }
+  .vline { stroke:rgba(110,231,183,.18); stroke-width:1; stroke-dasharray:2 5; }
+  .hgrid { stroke:rgba(255,255,255,.05); stroke-width:1; }
+
+  /* ---- shared draw primitives ---- */
+  .gline { fill:none; stroke:var(--c); stroke-linejoin:round; stroke-linecap:round; }
+  .gfill { stroke:none; }
+  .gdot  { fill:var(--c); }
+  .gbar  { fill:var(--c); }
+  .glowUnder { fill:none; stroke:var(--c); stroke-linejoin:round; stroke-linecap:round; filter:blur(6px); opacity:.55; }
+
+  /* ============================================================
+   * ANIMATIONS (applied to the plot wrapper by JS) — global pick.
+   * ============================================================ */
+  /* draw: stroke draws on (pathLength=100), fill + dots fade after */
+  .an-draw .gline, .an-draw .glowUnder { stroke-dasharray:100; stroke-dashoffset:100; animation:gDraw var(--dur,1.6s) var(--ease) forwards; }
+  .an-draw .gfill { opacity:0; animation:gFade var(--dur,1.6s) ease forwards; }
+  .an-draw .gdot  { opacity:0; animation:gPop .5s var(--ease) forwards; }
+  .an-draw .gbar  { transform:scaleY(0); transform-origin:50% 100%; animation:gGrow .6s var(--ease) forwards; }
+  @keyframes gDraw { to { stroke-dashoffset:0; } }
+  @keyframes gFade { from{opacity:0} to{opacity:1} }
+  @keyframes gPop  { from{opacity:0;transform:scale(.3)} to{opacity:1;transform:scale(1)} }
+  @keyframes gGrow { to { transform:scaleY(1); } }
+
+  /* wipe: reveal left→right */
+  .an-wipe .clipper { animation:gWipe var(--dur,1.4s) var(--ease) forwards; }
+  @keyframes gWipe { from{ clip-path:inset(0 100% 0 0);} to{ clip-path:inset(0 0 0 0);} }
+
+  /* rise: whole plot grows up from the baseline */
+  .an-rise .riser { transform:scaleY(0); transform-origin:50% 100%; animation:gRise var(--dur,1.1s) var(--ease) forwards; }
+  @keyframes gRise { to { transform:scaleY(1); } }
+
+  /* fade */
+  .an-fade .riser { opacity:0; animation:gFade2 var(--dur,1s) ease forwards; }
+  @keyframes gFade2 { to { opacity:1; } }
+
+  /* a travelling glow dot rides the line on every animation (if dots-on) */
+  .rider { fill:#fff; filter:drop-shadow(0 0 6px var(--c)); opacity:0; }
+  .an-draw .rider, .an-wipe .rider { animation:riderIn .3s ease forwards; animation-delay:var(--dur,1.6s); }
+  @keyframes riderIn { to { opacity:1; } }
+
+  @media (prefers-reduced-motion: reduce) {
+    .plot * { animation:none !important; stroke-dashoffset:0 !important; transform:none !important; opacity:1 !important; clip-path:none !important; }
+  }
+</style>
+</head>
+<body>
+  <div class="bar">
+    <h1>Graph Lab</h1>
+    <a href="text-lab.html" style="font-size:12px;color:var(--muted);text-decoration:none">Text</a>
+    <a href="schedule-lab.html" style="font-size:12px;color:var(--muted);text-decoration:none">Schedule</a>
+    <div class="grp">
+      <label>Color</label>
+      <div class="swatches" id="swatches"></div>
+    </div>
+    <div class="grp">
+      <label>Animate</label>
+      <select id="anim">
+        <option value="an-draw">Draw on</option>
+        <option value="an-wipe">Wipe L→R</option>
+        <option value="an-rise">Rise up</option>
+        <option value="an-fade">Fade in</option>
+      </select>
+    </div>
+    <div class="grp">
+      <label>Data</label>
+      <select id="data">
+        <option value="readiness">Readiness (24h)</option>
+        <option value="wave">Wave</option>
+        <option value="growth">Growth</option>
+        <option value="volatile">Volatile</option>
+      </select>
+    </div>
+    <div class="grp">
+      <label>Backdrop</label>
+      <select id="bg">
+        <option value="none">None</option>
+        <option value="aurora">Aurora</option>
+        <option value="particles">Particles</option>
+        <option value="mountains">Mountains</option>
+        <option value="stars">Stars + shooting</option>
+        <option value="grid">Grid</option>
+        <option value="dots">Dots</option>
+      </select>
+    </div>
+    <div class="grp"><label>Line</label><input id="lw" type="range" min="1" max="8" step="0.5" value="3" /></div>
+    <div class="grp"><label>Speed</label><input id="speed" type="range" min="0.4" max="2" step="0.1" value="1" /></div>
+    <label class="toggle"><input type="checkbox" id="smooth" checked /> smooth</label>
+    <label class="toggle"><input type="checkbox" id="glow" checked /> glow</label>
+    <label class="toggle"><input type="checkbox" id="d3" /> 3D</label>
+    <div class="grp"><label>Tilt</label><input id="tilt" type="range" min="0" max="55" step="1" value="34" /></div>
+    <label class="toggle"><input type="checkbox" id="parallax" checked /> parallax</label>
+    <label class="toggle"><input type="checkbox" id="hc" /> height→color</label>
+    <div class="grp"><label>High</label><input id="hiC" type="color" value="#6EE7B7" /></div>
+    <div class="grp"><label>Low</label><input id="loC" type="color" value="#EF4444" /></div>
+    <button class="btn" id="replayAll">Replay all ⟳</button>
+  </div>
+
+  <div class="grid" id="grid"></div>
+
+<script>
+/* ---------- datasets (values 0..1, one per hour 0..24) ---------- */
+var DATA = {
+  readiness: [.55,.28,.10,.07,.07,.08,.12,.45,.62,.66,.70,.90,.88,.74,.66,.60,.58,.60,.64,.70,.76,.82,.88,.92,.84],
+  wave:      Array.from({length:25},function(_,i){ return .5 + .42*Math.sin(i/24*Math.PI*3); }),
+  growth:    Array.from({length:25},function(_,i){ var t=i/24; return .12 + .82*(t*t*(3-2*t)); }),
+  volatile:  [.4,.6,.35,.7,.45,.8,.5,.85,.4,.6,.3,.75,.55,.9,.5,.7,.35,.65,.45,.8,.4,.7,.5,.85,.6]
+};
+var TIME = ['12A','','3A','','6A','','9A','','12P','','3P','','6P','','9P','','12A'];
+
+/* ---------- colour themes ---------- */
+var COLORS = [
+  { name:'mint',   c:'#6EE7B7', soft:'rgba(110,231,183,.35)', glow:'rgba(110,231,183,.6)',  deep:'#236b51' },
+  { name:'amber',  c:'#F59E0B', soft:'rgba(245,158,11,.32)',  glow:'rgba(245,158,11,.55)',  deep:'#945c06' },
+  { name:'coral',  c:'#e0795f', soft:'rgba(224,121,95,.32)',  glow:'rgba(224,121,95,.5)',   deep:'#8a4234' },
+  { name:'sky',    c:'#38BDF8', soft:'rgba(56,189,248,.30)',  glow:'rgba(56,189,248,.5)',   deep:'#1c6b8f' },
+  { name:'violet', c:'#A78BFA', soft:'rgba(167,139,250,.32)', glow:'rgba(167,139,250,.5)',  deep:'#5b4798' },
+  { name:'white',  c:'#E9EFE9', soft:'rgba(233,239,233,.22)', glow:'rgba(233,239,233,.4)',  deep:'#7a817a' }
+];
+
+/* ---------- chart styles (one per card) ---------- */
+/* opts flags consumed by render(): fill, gradient, dots, bars, neon, mirror, axis, area */
+var STYLES = [
+  { name:'01 · area + line',     fill:true,  gradient:true,  axis:false },
+  { name:'02 · line only (glow)',fill:false, neon:true },
+  { name:'03 · soft gradient',   fill:true,  gradient:true,  lwScale:.6 },
+  { name:'04 · stepped area',    fill:true,  gradient:true,  stepped:true },
+  { name:'05 · bars',            bars:true },
+  { name:'06 · dotted line',     fill:false, dots:true },
+  { name:'07 · neon ribbon',     fill:true,  gradient:true,  neon:true, ribbon:true },
+  { name:'08 · mirror reflect',  fill:true,  gradient:true,  mirror:true },
+  { name:'09 · axis + markers',  fill:true,  gradient:true,  axis:true },
+  { name:'10 · sparkline',       fill:false, lwScale:.7, mini:true },
+  { name:'11 · gradient stroke', fill:true,  gradient:true,  gradStroke:true },
+  { name:'12 · dots + line glow',fill:true,  gradient:true,  dots:true, neon:true }
+];
+
+/* ---------- colour interpolation (low→high by value) ---------- */
+function hex2rgb(h){ h=h.replace('#',''); if(h.length===3) h=h.split('').map(function(c){return c+c;}).join(''); return [parseInt(h.slice(0,2),16),parseInt(h.slice(2,4),16),parseInt(h.slice(4,6),16)]; }
+function lerpHex(a,b,t){ var x=hex2rgb(a),y=hex2rgb(b); return 'rgb('+Math.round(x[0]+(y[0]-x[0])*t)+','+Math.round(x[1]+(y[1]-x[1])*t)+','+Math.round(x[2]+(y[2]-x[2])*t)+')'; }
+
+/* ---------- geometry ---------- */
+var VW=1000, VH=320, PADX=24, TOP=26, BOT=276; // baseline at y=BOT
+function pts(values, axis) {
+  var left = axis ? 46 : PADX, right = VW - (axis ? 24 : PADX);
+  var bot = axis ? 250 : BOT, top = TOP;
+  return values.map(function (v, i) {
+    var x = left + (right - left) * (i / (values.length - 1));
+    var y = top + (bot - top) * (1 - v);
+    return [x, y, bot];
+  });
+}
+function linePath(P, smooth, stepped) {
+  if (stepped) {
+    var d = 'M' + P[0][0] + ',' + P[0][1];
+    for (var i = 1; i < P.length; i++) { d += ' L' + P[i][0] + ',' + P[i-1][1] + ' L' + P[i][0] + ',' + P[i][1]; }
+    return d;
+  }
+  if (!smooth) return 'M' + P.map(function (p){ return p[0]+','+p[1]; }).join(' L');
+  // catmull-rom → cubic bezier
+  var d = 'M' + P[0][0] + ',' + P[0][1];
+  for (var i = 0; i < P.length - 1; i++) {
+    var p0 = P[i-1]||P[i], p1 = P[i], p2 = P[i+1], p3 = P[i+2]||P[i+1];
+    var c1x = p1[0] + (p2[0]-p0[0])/6, c1y = p1[1] + (p2[1]-p0[1])/6;
+    var c2x = p2[0] - (p3[0]-p1[0])/6, c2y = p2[1] - (p3[1]-p1[1])/6;
+    d += ' C' + c1x+','+c1y+' '+c2x+','+c2y+' '+p2[0]+','+p2[1];
+  }
+  return d;
+}
+
+/* ---------- render one card's SVG ---------- */
+function render(style, st) {
+  var values = DATA[st.data];
+  var smooth = st.smooth && !style.stepped;
+  var P = pts(values, style.axis);
+  var lw = st.lw * (style.lwScale || 1);
+  var bot = P[0][2];
+  var line = linePath(P, smooth, style.stepped);
+  var area = line + ' L' + P[P.length-1][0] + ',' + bot + ' L' + P[0][0] + ',' + bot + ' Z';
+  var uid = 'g' + Math.random().toString(36).slice(2, 8);
+
+  var svg = '<svg viewBox="0 0 '+VW+' '+VH+'" preserveAspectRatio="none">';
+  svg += '<defs>';
+  svg += '<linearGradient id="'+uid+'f" x1="0" y1="0" x2="0" y2="1">'
+       + '<stop offset="0%" stop-color="var(--c)" stop-opacity="'+(style.neon?.55:.42)+'"/>'
+       + '<stop offset="55%" stop-color="var(--c)" stop-opacity=".12"/>'
+       + '<stop offset="100%" stop-color="var(--c)" stop-opacity="0"/></linearGradient>';
+  if (style.gradStroke) {
+    svg += '<linearGradient id="'+uid+'s" x1="0" y1="0" x2="1" y2="0">'
+         + '<stop offset="0%" stop-color="var(--c)" stop-opacity=".3"/>'
+         + '<stop offset="100%" stop-color="var(--c)" stop-opacity="1"/></linearGradient>';
+  }
+  if (state.heightColor) {
+    var botY = P[0][2]; // map across the plot's value range (top=high, baseline=low)
+    var brightHi = lerpHex(state.hiC, '#ffffff', .25); // pop the top
+    var midC = lerpHex(state.loC, state.hiC, .5);
+    // solid, vivid vertical gradient for the stroke
+    svg += '<linearGradient id="'+uid+'v" gradientUnits="userSpaceOnUse" x1="0" y1="'+TOP+'" x2="0" y2="'+botY+'">'
+         + '<stop offset="0%" stop-color="'+brightHi+'"/>'
+         + '<stop offset="35%" stop-color="'+state.hiC+'"/>'
+         + '<stop offset="65%" stop-color="'+midC+'"/>'
+         + '<stop offset="100%" stop-color="'+state.loC+'"/></linearGradient>';
+    // strong, clearly visible area fill — green up top, red down low
+    svg += '<linearGradient id="'+uid+'vf" gradientUnits="userSpaceOnUse" x1="0" y1="'+TOP+'" x2="0" y2="'+botY+'">'
+         + '<stop offset="0%" stop-color="'+state.hiC+'" stop-opacity=".92"/>'
+         + '<stop offset="40%" stop-color="'+midC+'" stop-opacity=".55"/>'
+         + '<stop offset="100%" stop-color="'+state.loC+'" stop-opacity=".38"/></linearGradient>';
+  }
+  svg += '</defs>';
+
+  // group that animations transform/clip
+  svg += '<g class="riser"><g class="clipper">';
+
+  // axis (h gridlines + vertical dotted markers + time labels)
+  if (style.axis) {
+    for (var g = 0; g <= 4; g++) { var y = TOP + (250-TOP)*g/4; svg += '<line class="hgrid" x1="46" y1="'+y+'" x2="976" y2="'+y+'"/>'; }
+    TIME.forEach(function (t, i) {
+      var x = 46 + (976-46)*(i/(TIME.length-1));
+      if (i % 2 === 0) svg += '<line class="vline" x1="'+x+'" y1="20" x2="'+x+'" y2="252"/>';
+      if (t) svg += '<text class="axisLabel" x="'+x+'" y="278" text-anchor="middle">'+t+'</text>';
+    });
+  }
+
+  // mirror reflection (faded, flipped under baseline)
+  if (style.mirror) {
+    svg += '<g transform="translate(0,'+(2*bot)+') scale(1,-1)" opacity=".18">'
+         + '<path class="gfill" d="'+area+'" fill="url(#'+uid+'f)"/></g>';
+  }
+
+  var hc = state.heightColor;
+  // bars
+  if (style.bars) {
+    P.forEach(function (p, i) {
+      var w = (P.length>1 ? (P[1][0]-P[0][0])*0.55 : 14);
+      var fillCss = hc ? ('fill:'+lerpHex(state.loC, state.hiC, values[i])+';') : '';
+      svg += '<rect class="gbar" x="'+(p[0]-w/2)+'" y="'+p[1]+'" width="'+w+'" height="'+(bot-p[1])+'" rx="2" style="'+fillCss+'animation-delay:'+(i*0.03)+'s"/>';
+    });
+  } else {
+    // fill
+    var fillRef = hc ? ('url(#'+uid+'vf)') : (style.gradient?('url(#'+uid+'f)'):'var(--c-soft)');
+    if (style.fill) svg += '<path class="gfill" d="'+area+'" fill="'+fillRef+'"/>';
+    // extruded thickness wall (3D) — stacked darker copies below the line
+    if (state.d3 && !style.mini) {
+      var depth = 14, ex = '<g class="extrude">';
+      for (var k = depth; k >= 1; k--) ex += '<path d="'+line+'" transform="translate(0,'+k+')" stroke-width="'+lw+'" pathLength="100"/>';
+      svg += ex + '</g>';
+    }
+    // neon under-glow
+    if (style.neon && st.glow) svg += '<path class="glowUnder" d="'+line+'" stroke-width="'+(lw*2.4)+'" pathLength="100"/>';
+    // main line
+    var stroke = hc ? ('url(#'+uid+'v)') : (style.gradStroke ? ('url(#'+uid+'s)') : 'var(--c)');
+    var glowCol = hc ? state.hiC : 'var(--c-glow)';
+    var glowF = st.glow ? ' style="filter:drop-shadow(0 0 '+(style.neon?7:(hc?6:4))+'px '+glowCol+')"' : '';
+    svg += '<path class="gline" d="'+line+'" stroke="'+stroke+'" stroke-width="'+(hc?lw+0.4:lw)+'" pathLength="100"'+glowF+'/>';
+    // dots
+    if (style.dots) P.forEach(function (p, i) {
+      var r = i === P.length-1 ? lw*1.4 : lw*1.0;
+      var dotCss = hc ? ('fill:'+lerpHex(state.loC, state.hiC, values[i])+';') : '';
+      svg += '<circle class="gdot" cx="'+p[0]+'" cy="'+p[1]+'" r="'+r+'" style="'+dotCss+'animation-delay:'+(0.04*i)+'s"/>';
+    });
+    // travelling rider dot at the end vertex
+    if (!style.mini) svg += '<circle class="rider" cx="'+P[P.length-1][0]+'" cy="'+P[P.length-1][1]+'" r="'+(lw*1.3)+'"/>';
+  }
+
+  svg += '</g></g></svg>';
+  return svg;
+}
+
+/* ---------- state + wiring ---------- */
+var state = { color:COLORS[0], anim:'an-draw', data:'readiness', lw:3, speed:1, smooth:true, glow:true, bg:'none', d3:false, tilt:34, parallax:true, heightColor:false, hiC:'#6EE7B7', loC:'#EF4444' };
+var grid = document.getElementById('grid');
+
+var MOUNTAIN_SVG = '<svg viewBox="0 0 1000 300" preserveAspectRatio="none">'
+  + '<path d="M0,210 L90,160 L170,185 L260,120 L350,160 L470,100 L580,150 L700,110 L820,160 L920,120 L1000,150 L1000,300 L0,300 Z" fill="var(--c-soft)" opacity=".5"/>'
+  + '<path d="M0,250 L110,215 L230,240 L350,200 L470,235 L600,205 L720,240 L850,210 L1000,245 L1000,300 L0,300 Z" fill="var(--c)" opacity=".22"/>'
+  + '</svg>';
+
+function buildBackdrop(bgEl) {
+  bgEl.className = 'bg' + (state.bg === 'none' ? '' : ' bgk-' + state.bg);
+  bgEl.innerHTML = '';
+  if (state.bg === 'mountains') { bgEl.innerHTML = MOUNTAIN_SVG; }
+  else if (state.bg === 'particles') {
+    for (var i = 0; i < 16; i++) {
+      var s = document.createElement('span');
+      s.style.left = Math.random()*100 + '%';
+      s.style.top = 55 + Math.random()*45 + '%';
+      var dur = 8 + Math.random()*10;
+      s.style.animationDuration = dur + 's';
+      s.style.animationDelay = -Math.random()*dur + 's';
+      s.style.setProperty('--dx', (Math.random()*40-20) + 'px');
+      s.style.setProperty('--dy', -(60 + Math.random()*80) + 'px');
+      bgEl.appendChild(s);
+    }
+  }
+  else if (state.bg === 'stars') {
+    var milky = document.createElement('span'); milky.className = 'milky'; bgEl.appendChild(milky);
+    for (var i = 0; i < 64; i++) {
+      var st = document.createElement('span'); st.className = 'star' + (Math.random() < 0.3 ? ' tint' : '');
+      var sz = 0.8 + Math.random()*1.8;
+      st.style.width = st.style.height = sz + 'px';
+      st.style.left = Math.random()*100 + '%';
+      st.style.top = Math.random()*100 + '%';
+      st.style.setProperty('--tw', (2 + Math.random()*4) + 's');
+      st.style.animationDelay = -Math.random()*5 + 's';
+      bgEl.appendChild(st);
+    }
+    for (var j = 0; j < 3; j++) {
+      var sh = document.createElement('span'); sh.className = 'shoot';
+      sh.style.left = (-5 + Math.random()*45) + '%';
+      sh.style.top = (3 + Math.random()*40) + '%';
+      sh.style.setProperty('--sd', (6 + Math.random()*4) + 's');
+      sh.style.setProperty('--sdelay', (j*3 + Math.random()*4) + 's');
+      bgEl.appendChild(sh);
+    }
+  }
+}
+function applyBackdrops() { cards.forEach(function (c) { buildBackdrop(c.bg); }); }
+
+function applyColorVars() {
+  document.documentElement.style.setProperty('--c', state.color.c);
+  document.documentElement.style.setProperty('--c-soft', state.color.soft);
+  document.documentElement.style.setProperty('--c-glow', state.color.glow);
+  document.documentElement.style.setProperty('--c-deep', state.color.deep);
+}
+
+var cards = STYLES.map(function (style) {
+  var card = document.createElement('div');
+  card.className = 'card';
+  card.innerHTML = '<div class="bg"></div><div class="scrim"></div><span class="tag">'+style.name+'</span><span class="replay">replay ⟳</span><div class="plot"></div>';
+  var plot = card.querySelector('.plot');
+  var bg = card.querySelector('.bg');
+  card.addEventListener('click', function () { playOne(style, plot); });
+  card.addEventListener('mousemove', function (e) {
+    if (!state.parallax || state.bg === 'none' || state.bg === 'grid') return;
+    var r = card.getBoundingClientRect();
+    var dx = (e.clientX - r.left - r.width/2) / (r.width/2);
+    var dy = (e.clientY - r.top - r.height/2) / (r.height/2);
+    bg.style.transform = 'translate3d(' + (-dx*16) + 'px,' + (-dy*12) + 'px,0)';
+  });
+  card.addEventListener('mouseleave', function () { bg.style.transform = 'translate3d(0,0,0)'; });
+  grid.appendChild(card);
+  return { style:style, plot:plot, bg:bg };
+});
+
+function st() { return { data:state.data, smooth:state.smooth, glow:state.glow, lw:parseFloat(document.getElementById('lw').value) }; }
+
+function playOne(style, plot) {
+  plot.innerHTML = render(style, st());
+  plot.classList.remove('an-draw','an-wipe','an-rise','an-fade');
+  plot.classList.toggle('is3d', state.d3);
+  plot.style.setProperty('--tdeg', state.tilt + 'deg');
+  void plot.offsetWidth;
+  var dur = (style.stepped?1.3:1.6) / state.speed;
+  plot.style.setProperty('--dur', dur + 's');
+  plot.classList.add(state.anim);
+}
+function replayAll() { cards.forEach(function (c, i) { setTimeout(function () { playOne(c.style, c.plot); }, i*55); }); }
+
+/* swatches */
+var sw = document.getElementById('swatches');
+COLORS.forEach(function (col, i) {
+  var b = document.createElement('div');
+  b.className = 'sw' + (i===0?' on':''); b.style.background = col.c; b.title = col.name;
+  b.addEventListener('click', function () {
+    state.color = col; applyColorVars();
+    [].forEach.call(sw.children, function (x){ x.classList.toggle('on', x===b); });
+    applyBackdrops(); replayAll();
+  });
+  sw.appendChild(b);
+});
+
+document.getElementById('anim').addEventListener('change', function(){ state.anim = this.value; replayAll(); });
+document.getElementById('data').addEventListener('change', function(){ state.data = this.value; replayAll(); });
+document.getElementById('lw').addEventListener('input', replayAll);
+document.getElementById('speed').addEventListener('input', function(){ state.speed = parseFloat(this.value); replayAll(); });
+document.getElementById('smooth').addEventListener('change', function(){ state.smooth = this.checked; replayAll(); });
+document.getElementById('glow').addEventListener('change', function(){ state.glow = this.checked; replayAll(); });
+document.getElementById('d3').addEventListener('change', function(){ state.d3 = this.checked; replayAll(); });
+document.getElementById('tilt').addEventListener('input', function(){ state.tilt = parseFloat(this.value); cards.forEach(function(c){ c.plot.style.setProperty('--tdeg', state.tilt+'deg'); }); });
+document.getElementById('parallax').addEventListener('change', function(){ state.parallax = this.checked; if(!state.parallax) cards.forEach(function(c){ c.bg.style.transform='translate3d(0,0,0)'; }); });
+document.getElementById('hc').addEventListener('change', function(){ state.heightColor = this.checked; replayAll(); });
+document.getElementById('hiC').addEventListener('input', function(){ state.hiC = this.value; if(state.heightColor) replayAll(); });
+document.getElementById('loC').addEventListener('input', function(){ state.loC = this.value; if(state.heightColor) replayAll(); });
+document.getElementById('replayAll').addEventListener('click', replayAll);
+document.getElementById('bg').addEventListener('change', function(){ state.bg = this.value; applyBackdrops(); });
+
+applyColorVars();
+applyBackdrops();
+replayAll();
+</script>
+</body>
+</html>
