@@ -86,6 +86,31 @@ body{ background:var(--vk-bg); color:var(--vk-fg); font-family:'Inter',-apple-sy
 .fieldLabel{ font-family:var(--en-mono); font-size:10px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; color:var(--vk-muted-strong); }
 .formActions{ display:flex; align-items:center; justify-content:flex-end; gap:10px; margin-top:14px; }
 
+/* ---------- manual check-in (subjective readiness, ported from Peak) ---------- */
+.mn-block{ font-family:var(--en-mono); font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:var(--vk-mint); margin:20px 0 12px; }
+.mn-rateRow{ display:flex; align-items:center; gap:12px; margin-bottom:11px; flex-wrap:wrap; }
+.mn-rateLab{ font-family:var(--en-mono); font-size:10px; letter-spacing:.08em; text-transform:uppercase; color:var(--vk-muted-strong); width:108px; flex-shrink:0; }
+.mn-chips{ display:flex; gap:6px; flex-wrap:wrap; align-items:center; }
+.mn-chip{ appearance:none; cursor:pointer; min-width:40px; padding:9px 12px; border-radius:10px; border:1px solid var(--vk-border); background:rgba(255,255,255,.02); color:var(--vk-muted-strong); font-family:var(--en-mono); font-size:13px; transition:background var(--vk-duration) var(--vk-ease), border-color var(--vk-duration) var(--vk-ease), color var(--vk-duration) var(--vk-ease); }
+.mn-chip:hover{ border-color:var(--vk-border-strong); color:var(--vk-fg); }
+.mn-chip.on{ background:var(--vk-mint); border-color:transparent; color:#04130c; font-weight:600; box-shadow:0 0 16px -6px var(--vk-mint-glow); }
+.mn-chip.warnOn.on{ background:var(--vk-amber); }
+.mn-chipWord{ font-family:var(--vk-font-serif),serif; font-style:italic; font-size:14px; color:var(--vk-mint); margin-left:4px; }
+.mn-derived{ font-family:var(--en-mono); font-size:11px; letter-spacing:.04em; color:var(--vk-muted); margin-top:10px; }
+.mn-derived b{ color:var(--vk-mint); }
+.mn-miniIn{ width:78px; background:rgba(255,255,255,.04); border:1px solid var(--vk-border-strong); border-radius:10px; padding:9px 11px; color:var(--vk-fg); font-family:inherit; font-size:14px; }
+.mn-miniIn:focus{ outline:none; border-color:var(--vk-mint); }
+.mn-pulseBtn{ appearance:none; cursor:pointer; padding:9px 11px; border-radius:9px; border:1px solid var(--vk-border-strong); background:rgba(110,231,183,.06); color:var(--vk-mint); font-family:var(--en-mono); font-size:11px; }
+.mn-pulseBtn:hover{ background:rgba(110,231,183,.15); }
+.mn-pulseRing{ position:relative; width:34px; height:34px; display:none; place-items:center; flex-shrink:0; }
+.mn-pulseRing.on{ display:inline-grid; }
+.mn-pulseRing svg{ position:absolute; inset:0; transform:rotate(-90deg); }
+.mn-pulseRing .pt{ fill:none; stroke:rgba(255,255,255,.1); stroke-width:3; }
+.mn-pulseRing .pf{ fill:none; stroke:var(--vk-mint); stroke-width:3; stroke-linecap:round; filter:drop-shadow(0 0 4px var(--vk-mint)); }
+.mn-pulseCount{ position:relative; z-index:1; font-family:var(--en-mono); font-size:11px; color:var(--vk-fg); }
+.mn-hint{ font-family:var(--en-mono); font-size:10px; color:var(--vk-muted); font-style:normal; }
+@media (max-width:520px){ .mn-rateLab{ width:100%; } }
+
 /* ---------- live ticker ---------- */
 .ticker{ display:flex; align-items:center; gap:12px; padding:8px 12px; border:1px solid var(--vk-border); border-radius:var(--vk-radius-pill); background:var(--vk-card); overflow:hidden; }
 .tickerEyebrow{ display:inline-flex; align-items:center; gap:8px; font-family:var(--en-mono); font-size:10px; letter-spacing:.18em; text-transform:uppercase; color:var(--vk-mint); white-space:nowrap; padding-right:12px; border-right:1px solid var(--vk-border); flex-shrink:0; }
@@ -418,6 +443,86 @@ const BAND=(function(){
     appleData=snap; try{localStorage.setItem(HEALTH_KEY,JSON.stringify(snap));}catch(e){} editingApple=false; refresh();
   }
 
+  /* ---- Manual check-in (subjective readiness, ported from the Peak tracker) ---- */
+  const MN_RATINGS=[
+    ['sleepQ','Sleep quality',['Terrible','Poor','OK','Good','Great'],false],
+    ['energy','Energy',['Drained','Low','OK','Good','Buzzing'],false],
+    ['mood','Mood',['Low','Meh','OK','Good','Great'],false],
+    ['soreness','Soreness',['None','Mild','Some','Sore','Wrecked'],true],
+    ['stress','Stress',['Calm','Low','OK','High','Frazzled'],true],
+  ];
+  const MN_WAKE=['05:30','06:00','06:30','07:00','07:30','08:00','08:30','09:00','09:30'];
+  const MN_HRS=[5,5.5,6,6.5,7,7.5,8,8.5,9,9.5];
+  function mnClock(t){ t=((t%24)+24)%24; let hh=Math.floor(t); const mm=Math.round((t-hh)*60); let m2=mm; if(m2===60){hh+=1;m2=0;} const ap=hh<12?'AM':'PM'; let h12=hh%12; if(h12===0)h12=12; return h12+(m2?':'+String(m2).padStart(2,'0'):'')+' '+ap; }
+  function mnHmToFloat(s){ if(!s)return null; const p=String(s).split(':').map(Number); return p[0]+(p[1]||0)/60; }
+  function mnDeriveBed(wakeTime,hours){ if(!wakeTime||hours==null)return null; const a=wakeTime.split(':').map(Number); let mins=(a[0]*60+(a[1]||0))-Math.round(hours*60); mins=((mins%1440)+1440)%1440; return String(Math.floor(mins/60)).padStart(2,'0')+':'+String(mins%60).padStart(2,'0'); }
+  /* Hooper-index readiness from the five 1–5 ratings (matches Peak's subjReadiness) */
+  function mnSubjReadiness(s){ if(!s)return null; const up=v=>(v-1)/4*100,down=v=>(5-v)/4*100; const parts=[],w=[]; if(s.sleepQ){parts.push(up(s.sleepQ));w.push(0.30);} if(s.energy){parts.push(up(s.energy));w.push(0.25);} if(s.soreness){parts.push(down(s.soreness));w.push(0.20);} if(s.stress){parts.push(down(s.stress));w.push(0.15);} if(s.mood){parts.push(up(s.mood));w.push(0.10);} if(!parts.length)return null; const sw=w.reduce((a,b)=>a+b,0); let x=0; for(let i=0;i<parts.length;i++)x+=parts[i]*w[i]; return Math.max(1,Math.min(99,Math.round(x/sw))); }
+
+  let manualData=null, editingManual=false, mDraft=null;
+  function loadManual(){ try{ const cur=JSON.parse(localStorage.getItem(HEALTH_KEY)||'null'); if(cur&&cur.source==='manual')manualData=cur; }catch(e){} }
+  function ensureMDraft(){ if(mDraft)return; const a=manualData||{}; mDraft={ sleepQ:a.sleepQ||null,energy:a.energy||null,mood:a.mood||null,soreness:a.soreness||null,stress:a.stress||null,wakeTime:a.wakeTime||null,sleepHours:(a.sleepHours!=null?a.sleepHours:null),rhr:(a.rhr!=null?a.rhr:null) }; }
+  function clearManual(){ manualData=null; mDraft=null; try{ const cur=JSON.parse(localStorage.getItem(HEALTH_KEY)||'null'); if(cur&&cur.source==='manual')localStorage.removeItem(HEALTH_KEY); }catch(e){} }
+  function mnCaptureRhr(){ const el=document.getElementById('mn-rhr'); if(el&&mDraft){ const n=Number(el.value); mDraft.rhr=(el.value!==''&&isFinite(n))?n:null; } }
+  function mnRateRow(field,label,opts,warn){ ensureMDraft(); const cur=mDraft[field]; const chips=opts.map((t,i)=>{ const v=i+1; return '<button type="button" class="mn-chip'+(warn?' warnOn':'')+(cur===v?' on':'')+'" data-mrate="'+field+'" data-val="'+v+'">'+v+'</button>'; }).join(''); const word=cur?'<span class="mn-chipWord">'+esc(opts[cur-1])+'</span>':''; return '<div class="mn-rateRow"><span class="mn-rateLab">'+esc(label)+'</span><div class="mn-chips">'+chips+word+'</div></div>'; }
+  function manualFormHtml(){
+    ensureMDraft();
+    const savedNote=manualData?'<p class="connectSub">Editing today’s check-in.</p>':'';
+    const ratings=MN_RATINGS.map(r=>mnRateRow(r[0],r[1],r[2],r[3])).join('');
+    const wakeChips=MN_WAKE.map(t=>'<button type="button" class="mn-chip'+(mDraft.wakeTime===t?' on':'')+'" data-mwake="'+t+'">'+mnClock(mnHmToFloat(t))+'</button>').join('');
+    const hrChips=MN_HRS.map(v=>'<button type="button" class="mn-chip'+(mDraft.sleepHours===v?' on':'')+'" data-mhrs="'+v+'">'+v+'</button>').join('');
+    const bed=mnDeriveBed(mDraft.wakeTime,mDraft.sleepHours);
+    const derived=(mDraft.wakeTime&&mDraft.sleepHours!=null)
+      ? '<div class="mn-derived">→ In bed around <b>'+mnClock(mnHmToFloat(bed))+'</b> · <b>'+mDraft.sleepHours+'h</b> sleep</div>'
+      : '<div class="mn-derived">Pick a wake time + hours and we work out your bedtime.</div>';
+    return '<p class="connectIntro">No band? Rate <em>how you feel</em> and log your sleep. Liam turns it into a readiness score (Hooper index) that feeds the same dashboard and supplement picks.</p>'+savedNote
+      + '<p class="mn-block">How you feel today</p>'+ratings
+      + '<p class="mn-block">Sleep</p>'
+      + '<div class="mn-rateRow"><span class="mn-rateLab">Woke at</span><div class="mn-chips">'+wakeChips+'</div></div>'
+      + '<div class="mn-rateRow"><span class="mn-rateLab">Hours slept</span><div class="mn-chips">'+hrChips+'</div></div>'
+      + derived
+      + '<div class="mn-rateRow" style="margin-top:18px"><span class="mn-rateLab">Resting pulse</span><div class="mn-chips" style="align-items:center">'
+      + '<input id="mn-rhr" class="mn-miniIn" type="number" min="20" max="150" inputmode="numeric" placeholder="bpm" value="'+(mDraft.rhr!=null?mDraft.rhr:'')+'">'
+      + '<button type="button" class="mn-pulseBtn" data-mpulse="10">10s</button><button type="button" class="mn-pulseBtn" data-mpulse="30">30s</button>'
+      + '<span class="mn-pulseRing" id="mnPulseRing"><svg viewBox="0 0 34 34"><circle class="pt" cx="17" cy="17" r="14"/><circle class="pf" id="mnPulseFill" cx="17" cy="17" r="14"/></svg><span class="mn-pulseCount" id="mnPulseCount"></span></span>'
+      + '<span class="mn-hint" id="mnPulseHint">tap 10s/30s &amp; count beats</span></div></div>'
+      + '<p class="setupNote"><strong>How it works:</strong> with no band, your <em>readiness</em> comes from how you feel + sleep (the Hooper index). Saved into the suite tagged <strong>Manual</strong>, same as a band reading.</p>'
+      + '<div class="formActions">'+(manualData?'<button type="button" class="en-link" data-action="remove-manual">remove</button>':'')+'<button type="button" class="en-btn" data-action="save-manual">'+(manualData?'Update check-in':'Save check-in')+'</button></div>';
+  }
+  function saveManualEntry(){
+    ensureMDraft(); mnCaptureRhr();
+    const sleepQ=mDraft.sleepQ,energy=mDraft.energy,mood=mDraft.mood,soreness=mDraft.soreness,stress=mDraft.stress,wakeTime=mDraft.wakeTime,sleepHours=mDraft.sleepHours,rhr=mDraft.rhr;
+    const readiness=mnSubjReadiness({sleepQ,energy,mood,soreness,stress});
+    if(readiness==null&&sleepHours==null&&rhr==null){ alert('Tap at least how you feel — or pick your sleep.'); return; }
+    const target=8;
+    const sleepPerf=sleepHours!=null?Math.round(Math.min(100,sleepHours/target*100)):null;
+    const bedtime=mnDeriveBed(wakeTime,sleepHours);
+    const snap={ source:'manual',connected:true,ts:Date.now(),recovery:readiness,subjective:readiness!=null,sleepQ,energy,mood,soreness,stress,sleepHours,sleepPerf,sleepTargetHours:target,bedtime,wakeTime,hrv:null,rhr,strain:null };
+    manualData=snap; try{localStorage.setItem(HEALTH_KEY,JSON.stringify(snap));}catch(e){} editingManual=false; refresh();
+  }
+  /* pulse-counter: a ring fills over 10s/30s; you count beats, it → BPM */
+  let mnPulseIntv=null;
+  function mnStartPulse(dur){
+    if(mnPulseIntv){ clearInterval(mnPulseIntv); mnPulseIntv=null; }
+    const ring=document.getElementById('mnPulseRing'), fill=document.getElementById('mnPulseFill'), count=document.getElementById('mnPulseCount'), hint=document.getElementById('mnPulseHint');
+    if(!ring||!fill)return;
+    const C=2*Math.PI*14; fill.style.strokeDasharray=C; fill.style.strokeDashoffset=C;
+    ring.classList.add('on'); if(hint)hint.textContent='counting… '+dur+'s';
+    const start=Date.now();
+    mnPulseIntv=setInterval(()=>{
+      const elapsed=(Date.now()-start)/1000, frac=Math.min(1,elapsed/dur);
+      fill.style.strokeDashoffset=C*(1-frac);
+      if(count)count.textContent=Math.max(0,Math.ceil(dur-elapsed));
+      if(frac>=1){
+        clearInterval(mnPulseIntv); mnPulseIntv=null;
+        try{ if(navigator.vibrate)navigator.vibrate(200); }catch(e){}
+        const beats=prompt('How many beats did you count in '+dur+' seconds?');
+        ring.classList.remove('on'); if(count)count.textContent=''; if(hint)hint.textContent='tap 10s/30s & count beats';
+        if(beats!=null){ const b=Math.max(0,Math.round(+beats)); if(b){ const bpm=Math.round(b*(60/dur)); const inp=document.getElementById('mn-rhr'); if(inp)inp.value=bpm; ensureMDraft(); mDraft.rhr=bpm; if(hint)hint.textContent='✓ '+bpm+' bpm'; } }
+      }
+    },50);
+  }
+
   /* ---- connection state ---- */
   const LS_KEY='whoop_standalone_connected_v1';
   let connected=false; try{ connected=localStorage.getItem(LS_KEY)==='1'; }catch(e){}
@@ -436,7 +541,7 @@ const BAND=(function(){
   /* ---- source segment + connect / form ---- */
   function sourceTabsHtml(){
     const tab=(key,emoji,label)=>'<button type="button" class="srcTab '+(connectSource===key?'srcTabActive':'')+'" data-action="src-tab" data-src="'+key+'"><span aria-hidden>'+emoji+'</span>'+label+'</button>';
-    return '<div class="srcSeg" role="tablist" aria-label="Data source">'+tab('whoop','🔋','Whoop')+tab('fitbit','💠','Fitbit')+tab('apple','⌚','Apple Health')+'</div>';
+    return '<div class="srcSeg" role="tablist" aria-label="Data source">'+tab('whoop','🔋','Whoop')+tab('fitbit','💠','Fitbit')+tab('apple','⌚','Apple Health')+tab('manual','✍️','Manual')+'</div>';
   }
   function whoopConnectBodyHtml(){
     const cta=ON_SERVER
@@ -466,13 +571,15 @@ const BAND=(function(){
       + '<div class="formActions">'+(appleData?'<button type="button" class="en-link" data-action="remove-apple">remove</button>':'')+'<button type="button" class="en-btn" data-action="save-apple">Save readings</button></div>';
   }
   function connectPanelHtml(){
-    const body=connectSource==='apple'?appleFormHtml():connectSource==='fitbit'?fitbitConnectBodyHtml():whoopConnectBodyHtml();
+    const body=connectSource==='manual'?manualFormHtml():connectSource==='apple'?appleFormHtml():connectSource==='fitbit'?fitbitConnectBodyHtml():whoopConnectBodyHtml();
     return '<section class="en-card"><p class="en-eyebrow">Connect a source</p>'+sourceTabsHtml()+'<div style="margin-top:16px">'+body+'</div></section>';
   }
 
   function dataPanelFooter(d,kind){
     const actions=kind==='apple'
       ? '<span class="synced">entered manually · Apple Watch</span><button type="button" class="en-ghost" data-action="edit-apple">edit readings</button><button type="button" class="en-link" data-action="remove-apple">remove</button>'
+      : kind==='manual'
+      ? '<span class="synced">entered manually · check-in</span><button type="button" class="en-ghost" data-action="edit-manual">edit check-in</button><button type="button" class="en-link" data-action="remove-manual">remove</button>'
       : '<span class="synced">'+(d.lastSyncedMinutes!=null?'last synced '+d.lastSyncedMinutes+'m ago':'sync time unknown')+'</span><button type="button" class="en-ghost" data-action="sync"'+(syncing?' disabled':'')+'>'+(syncing?'syncing…':'sync now')+'</button><button type="button" class="en-link" data-action="disconnect">disconnect</button>';
     return '<section class="en-card"><div class="footer"><div class="legend"><span class="legendDot" data-tone="good"></span> Good<span class="legendDot" data-tone="watch"></span> Watch<span class="legendDot" data-tone="low"></span> Low</div><div class="footerActions">'+actions+'</div></div></section>';
   }
@@ -483,6 +590,7 @@ const BAND=(function(){
     if(liveData){ d=liveData; kind='whoop-live'; }
     else if(fitbitData){ d=fitbitData; kind='fitbit-live'; }
     else if(appleData&&!editingApple){ d=buildLiveData(appleData); kind='apple'; }
+    else if(manualData&&!editingManual){ d=buildLiveData(manualData); kind='manual'; }
     else if(!ON_SERVER&&connected){ d=SAMPLE; kind='sample'; }
     activeKind=kind;
     if(kind==='whoop-live')publishWhoopData(liveData);
@@ -498,6 +606,7 @@ const BAND=(function(){
     if(d){
       if(kind==='sample')out+='<div class="statusChip sample"><span class="pulse" aria-hidden></span>Sample data · connect WHOOP for live numbers</div>';
       else if(kind==='apple')out+='<div class="statusChip"><span class="pulse" aria-hidden></span>Apple Health · entered manually</div>';
+      else if(kind==='manual')out+='<div class="statusChip"><span class="pulse" aria-hidden></span>Manual · daily check-in</div>';
       else if(kind==='fitbit-live')out+='<div class="statusChip"><span class="pulse" aria-hidden></span>Fitbit · live (no recovery score)</div>';
       else out+='<div class="statusChip"><span class="pulse" aria-hidden></span>Whoop · live</div>';
       out+=tickerHtml(d)+recoveryHeroHtml(d)+statGridHtml(d)+sleepDebtHtml(d)+coachHtml(d)+dataPanelFooter(d,kind);
@@ -513,11 +622,20 @@ const BAND=(function(){
 
   /* events (scoped to the Band tab) */
   document.addEventListener('click',e=>{
-    if(activeTab!=='band')return; const btn=e.target.closest('[data-action]'); if(!btn)return; const action=btn.getAttribute('data-action');
+    if(activeTab!=='band')return;
+    // manual check-in chips (no data-action) — capture the typed pulse first, then re-render
+    const mr=e.target.closest('[data-mrate]'); if(mr){ ensureMDraft(); mnCaptureRhr(); const f=mr.dataset.mrate,v=+mr.dataset.val; mDraft[f]=(mDraft[f]===v?null:v); renderPanel(); return; }
+    const mw=e.target.closest('[data-mwake]'); if(mw){ ensureMDraft(); mnCaptureRhr(); mDraft.wakeTime=(mDraft.wakeTime===mw.dataset.mwake?null:mw.dataset.mwake); renderPanel(); return; }
+    const mh=e.target.closest('[data-mhrs]'); if(mh){ ensureMDraft(); mnCaptureRhr(); const v=+mh.dataset.mhrs; mDraft.sleepHours=(mDraft.sleepHours===v?null:v); renderPanel(); return; }
+    const mp=e.target.closest('[data-mpulse]'); if(mp){ mnStartPulse(parseInt(mp.dataset.mpulse,10)||30); return; }
+    const btn=e.target.closest('[data-action]'); if(!btn)return; const action=btn.getAttribute('data-action');
     if(action==='src-tab'){ connectSource=btn.getAttribute('data-src'); renderPanel(); return; }
     if(action==='save-apple'){ saveAppleEntry(); return; }
     if(action==='edit-apple'){ editingApple=true; connectSource='apple'; renderPanel(); return; }
     if(action==='remove-apple'){ if(confirm('Remove your Apple Health readings from the suite?')){ clearApple(); editingApple=false; refresh(); } return; }
+    if(action==='save-manual'){ saveManualEntry(); return; }
+    if(action==='edit-manual'){ editingManual=true; connectSource='manual'; mDraft=null; renderPanel(); return; }
+    if(action==='remove-manual'){ if(confirm('Remove your manual check-in from the suite?')){ clearManual(); editingManual=false; refresh(); } return; }
     if(action==='connect'){ setConnected(true); return; }
     if(action==='disconnect'){
       if(activeKind==='fitbit-live'){ fetch('/api/fitbit/logout').catch(()=>{}).then(()=>{ fitbitConnected=false; fitbitData=null; clearFitbitData(); refresh(); }); }
@@ -532,10 +650,10 @@ const BAND=(function(){
       return;
     }
   });
-  document.addEventListener('keydown',e=>{ if(activeTab!=='band')return; if(e.key!=='Enter')return; const id=e.target&&e.target.id; if(id&&id.indexOf('a-')===0){ e.preventDefault(); saveAppleEntry(); } });
+  document.addEventListener('keydown',e=>{ if(activeTab!=='band')return; if(e.key!=='Enter')return; const id=e.target&&e.target.id; if(id&&id.indexOf('a-')===0){ e.preventDefault(); saveAppleEntry(); } else if(id==='mn-rhr'){ e.preventDefault(); saveManualEntry(); } });
 
   function boot(){
-    loadApple();
+    loadApple(); loadManual();
     if(!ON_SERVER)return;
     try{ const q=new URLSearchParams(location.search); const w=q.get('whoop'),f=q.get('fitbit'); if(w||f){ history.replaceState(null,'',location.pathname); if(w==='error'||w==='denied')alert('Whoop connection didn’t complete — check the host’s WHOOP keys & redirect URL (WHOOP_SETUP.md).'); if(f==='error'||f==='denied')alert('Fitbit connection didn’t complete — check the host’s FITBIT keys & redirect URL (FITBIT_SETUP.md).'); if(f==='connected')connectSource='fitbit'; } }catch(e){}
     syncWhoopLive(); syncFitbitLive();
