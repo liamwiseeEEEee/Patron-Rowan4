@@ -253,6 +253,7 @@
       <a href="schedule-lab.html" class="on">Schedule</a>
     </div>
     <div class="sendGroup">
+      <button id="dlLab" class="labBtn" title="Download this Schedule Lab as a single file you can open on any computer">⬇ Download</button>
       <button id="copyCfg" class="labBtn" title="Copy this style as JSON">Copy config</button>
       <button id="sendPeak" class="labBtn primary" title="Send this exact style to your Peak tracker">Send to Peak →</button>
     </div>
@@ -986,6 +987,14 @@ function fullCfg(){ return { fill:S.fill, op:S.op, rad:S.rad, colorMode:S.colorM
 function labToast(msg){ var t=document.getElementById('labToast'); if(!t){ t=document.createElement('div'); t.id='labToast'; t.className='labToast'; document.body.appendChild(t); } t.textContent=msg; t.classList.add('show'); clearTimeout(t._t); t._t=setTimeout(function(){ t.classList.remove('show'); },2600); }
 document.getElementById('sendPeak').addEventListener('click',function(){ try{ localStorage.setItem('peak_sched_style_v1', JSON.stringify(fullCfg())); labToast('✓ Sent to Peak — open the Peak tracker to see it'); }catch(e){ labToast('Could not save — storage blocked'); } });
 document.getElementById('copyCfg').addEventListener('click',function(){ var json=JSON.stringify(fullCfg()); function done(){ labToast('✓ Config copied — paste as SCHED_STYLE_DEFAULT in peak.html'); } if(navigator.clipboard&&navigator.clipboard.writeText){ navigator.clipboard.writeText(json).then(done,function(){ window.prompt('Copy this config:', json); }); } else { window.prompt('Copy this config:', json); } });
+/* ---------- Download this Lab as a single standalone file ----------
+ * Schedule Lab is one self-contained HTML file (all CSS + JS inline). This
+ * saves a copy you can keep and double-click on any computer — no install. */
+document.getElementById('dlLab').addEventListener('click',function(){
+  function save(text){ var blob=new Blob([text],{type:'text/html'}); var url=URL.createObjectURL(blob); var a=document.createElement('a'); a.href=url; a.download='schedule-lab.html'; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function(){ URL.revokeObjectURL(url); },1500); labToast('✓ Downloaded schedule-lab.html — double-click it to open'); }
+  // grab the pristine page source; fall back to the live DOM if fetch is blocked (e.g. file://)
+  fetch(location.href,{cache:'no-store'}).then(function(r){ return r.text(); }).then(save).catch(function(){ save('<!DOCTYPE html>\n'+document.documentElement.outerHTML); });
+});
 
 drawUIKit();
 </script>
