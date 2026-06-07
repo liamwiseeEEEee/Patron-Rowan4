@@ -772,7 +772,7 @@ const SCHED='peak_schedule_v1'; let planOpen=false;
  * stale saved tasks once (the file is the source of truth, like the style),
  * while still letting you add/drag/edit in Peak afterwards (your edits save
  * under today's key with the current seed and win until the next day or ship). */
-const SCHED_SEED='lab-2026-06-07k-FIXED';
+const SCHED_SEED='lab-2026-06-07L-FIXED';
 const DEFAULT_SCHED=[];
 /* one-time cleanup: physically drop a schedule saved by an older build (seed
  * mismatch) so stale/overlapping tasks can't linger in localStorage. */
@@ -790,12 +790,15 @@ try{ if(localStorage.getItem('peak_sched_nuked')!==SCHED_NUKE){ localStorage.rem
 function sanitizeSched(tasks){ if(!Array.isArray(tasks))return tasks;
   const fixed=tasks.filter(t=>t&&!t.gap), gaps=tasks.filter(t=>t&&t.gap);
   const isLocked=t=>(t.locked!=null?!!t.locked:!!t.explicit) && t.start!=null;
-  const placed=[], result=[]; const wake=wakeBed().wake;
+  const placed=[], result=[]; const floor=dawnFloor();
   const overlaps=(s,e)=>placed.some(p=>s<p.end-1e-6 && e>p.start+1e-6);
-  fixed.filter(isLocked).sort((a,b)=>a.start-b.start).forEach(t=>{ placed.push({start:t.start,end:t.end}); result.push(t); });
-  fixed.filter(t=>!isLocked(t)).sort((a,b)=>((a.start==null?1e9:a.start)-(b.start==null?1e9:b.start))).forEach(t=>{
+  // Locked/explicit tasks claim their slot first, but EVERYTHING is floored past the
+  // dawn ramp and de-stacked: three things can't share 6:45, and nothing belongs in
+  // the pre-dawn low. Any task below the floor or overlapping another is reflowed.
+  fixed.slice().sort((a,b)=>((isLocked(b)?1:0)-(isLocked(a)?1:0)) || ((a.start==null?1e9:a.start)-(b.start==null?1e9:b.start))).forEach(t=>{
     const dur=taskDur(t); let s=t.start;
-    if(s==null||overlaps(s,s+dur)){ s=snapFree(s==null?wake:s, dur, placed); }
+    if(s==null){ s=snapFree(floor,dur,placed); }
+    else { s=Math.max(s,floor); if(overlaps(s,s+dur)) s=snapFree(s,dur,placed); }
     t.start=s; t.end=Math.min(24,s+dur); t.durH=t.end-t.start;
     placed.push({start:t.start,end:t.end}); result.push(t);
   });
