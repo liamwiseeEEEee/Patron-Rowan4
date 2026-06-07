@@ -3,11 +3,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<link rel="manifest" href="manifest.webmanifest" />
 <meta name="theme-color" content="#05080a" />
 <meta name="mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 <meta name="apple-mobile-web-app-title" content="Liam" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<link rel="icon" type="image/svg+xml" href="icon.svg" />
 <title>Peak · Liam</title>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -198,6 +201,16 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
 .sleepHit:hover{ background:rgba(110,231,183,.05); }
 .sleepEditBtn{ position:absolute; top:50%; transform:translate(-50%,-50%); z-index:6; appearance:none; cursor:pointer; white-space:nowrap; font-family:var(--mono); font-size:10px; letter-spacing:.04em; color:var(--accent2); background:var(--panel2); border:1px solid var(--line2); border-radius:9px; padding:8px 12px; box-shadow:0 8px 22px rgba(0,0,0,.55); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); }
 .sleepEditBtn:hover{ border-color:var(--accent); background:rgba(110,231,183,.12); }
+.sleepEditPop{ position:absolute; top:50%; left:50%; transform:translate(-50%,-50%); z-index:9; width:236px; background:var(--panel2); border:1px solid var(--line2); border-radius:14px; padding:16px 18px; box-shadow:0 20px 55px rgba(0,0,0,.7); -webkit-backdrop-filter:blur(12px); backdrop-filter:blur(12px); }
+.sleepEditTitle{ font-family:var(--serif); font-style:italic; font-size:17px; margin-bottom:13px; }
+.sleepEditRow{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:11px; font-family:var(--mono); font-size:11px; letter-spacing:.04em; color:var(--muted2); }
+.sleepEditRow input[type=time]{ background:rgba(255,255,255,.05); border:1px solid var(--line); border-radius:8px; padding:7px 9px; color:var(--fg); font-family:var(--mono); font-size:13px; color-scheme:dark; }
+.sleepEditRow input[type=time]:focus{ outline:none; border-color:var(--accent); }
+.sleepEditBtns{ display:flex; gap:8px; margin-top:6px; }
+.sleepEditCancel,.sleepEditSaveBtn{ flex:1; appearance:none; cursor:pointer; border-radius:8px; padding:9px; font-family:var(--mono); font-size:11px; letter-spacing:.04em; }
+.sleepEditCancel{ background:none; border:1px solid var(--line); color:var(--muted2); }
+.sleepEditCancel:hover{ color:var(--fg); border-color:var(--line2); }
+.sleepEditSaveBtn{ border:0; font-weight:600; color:#04130c; background:linear-gradient(120deg,var(--accent),var(--accent2)); }
 /* live "now" marker on the graph (ported from Schedule Lab): value bubble + dot + line, plus the bedtime moon */
 .nowline{ position:absolute; top:0; bottom:18px; width:1px; background:rgba(255,255,255,.4); pointer-events:none; z-index:4; }
 .nowdot{ position:absolute; width:13px; height:13px; border-radius:50%; background:#fff; border:2px solid var(--accent2); box-shadow:0 0 14px var(--accent2); transform:translate(-50%,-50%); pointer-events:none; z-index:5; }
@@ -465,7 +478,6 @@ body{ background:var(--bg); color:var(--fg); font-family:var(--ui); -webkit-font
 </main>
 <div id="modalRoot"></div>
 
-<!-- standalone build: no cloud sync. All data stays on this device (localStorage). -->
 <script>
 /* ============================================================
  * PEAK TRACKER — one place for all vitals.
@@ -714,7 +726,7 @@ function medCardHtml(){
     + searchBlock
     + medLogsHtml()
     +'<div class="cafTip"><span class="cafTipIcon">'+tip.icon+'</span><span class="cafTipTxt">'+tip.txt+'</span></div>'
-    +''
+    +'<a class="trackLink" href="meds.html">Open Meds tracker →</a>'
     +'</div>';
 }
 function medLogsHtml(){ const logs=medTodayLogs(); if(!logs.length)return ''; return '<div class="cafLogsHead"><span class="cafLogsLab">Today’s doses</span><button class="cafClear" data-clearmed="1">clear all</button></div><div class="cafLogs">'+logs.map(l=>'<span class="cafLog"><b>'+esc(l.name)+'</b> '+Math.round(l.mg)+'mg · '+fmtClockMs(l.t)+'<span class="cafLogX" data-rmmed="'+esc(l.id||'')+'" title="Remove">×</span></span>').join('')+'</div>'; }
@@ -729,7 +741,7 @@ function waterCardHtml(){
     +'<div class="cafChips"><button class="cafChip" data-water="1"><span class="cafChipName">+1 glass</span><span class="cafChipMg">~250 ml</span></button>'
     +'<button class="cafChip" data-water="2"><span class="cafChipName">+2 glasses</span><span class="cafChipMg">~500 ml</span></button>'
     +(c>0?'<button class="cafChip" data-water="-1"><span class="cafChipName">− undo</span><span class="cafChipMg">last glass</span></button>':'')+'</div>'
-    +'</div>';
+    +'<a class="trackLink" href="water.html">Open Water tracker →</a></div>';
 }
 
 /* ---- compact Supplements card (tap to mark taken; syncs supplements_standalone_v1) ---- */
@@ -739,14 +751,14 @@ function suppTakenMap(){ const s=readLS('supplements_standalone_v1'); return (s&
 function toggleSupp(id){ const s=readLS('supplements_standalone_v1')||{items:[],taken:{}}; if(!s.taken)s.taken={}; const k=suppDateKey(); const day=Object.assign({},s.taken[k]||{}); if(day[id])delete day[id]; else day[id]=true; s.taken[k]=day; try{ localStorage.setItem('supplements_standalone_v1',JSON.stringify(s)); }catch(e){} render(); }
 function suppCardHtml(){
   const items=suppItems();
-  if(!items.length) return '<div class="card cafCard"><div class="cafHero"><div class="cafHeroV" style="font-size:20px">No stack yet</div><div class="cafCeil">supplements</div></div></div>';
+  if(!items.length) return '<div class="card cafCard"><div class="cafHero"><div class="cafHeroV" style="font-size:20px">No stack yet</div><div class="cafCeil">supplements</div></div><a class="trackLink" href="supplements.html">Set up Supplements →</a></div>';
   const tk=suppTakenMap(); const taken=items.filter(i=>tk[i.id]).length;
   const chips=items.map(i=>'<button class="cafChip'+(tk[i.id]?' suppOn':'')+'" data-supp="'+esc(i.id)+'"><span class="cafChipName">'+(tk[i.id]?'✓ ':'')+esc(i.name)+'</span></button>').join('');
   return '<div class="card cafCard">'
     +'<div class="cafHero"><div class="cafHeroV">'+taken+'<small> / '+items.length+' taken</small></div><div class="cafCeil">tap to log</div></div>'
     +'<div class="cafBar"><div class="cafBarFill" style="width:'+Math.round(taken/items.length*100)+'%"></div></div>'
     +'<div class="cafChips">'+chips+'</div>'
-    +'</div>';
+    +'<a class="trackLink" href="supplements.html">Open Supplements →</a></div>';
 }
 
 /* ---- profile stats for the header ticker ---- */
@@ -863,6 +875,24 @@ function buildCurve(){ const a=[]; for(let t=0;t<=24;t+=0.5){ const v=energyAt(t
 function peakOf(curve){ const {wake,bed}=wakeBed(); let best=curve[0]; for(const p of curve){ const inDay=bed>wake?(p.t>=wake&&p.t<=bed):(p.t>=wake||p.t<=bed); if(inDay&&p.e>best.e)best=p; } if(best.e<=2){ for(const p of curve)if(p.e>best.e)best=p; } return best; }
 // Optimal sleep window = the bedtime that banks your full sleep target before your wake.
 function optimalSleep(){ const h=health(); const wake=wakeBed().wake; const need=(h&&typeof h.sleepTargetHours==='number')?h.sleepTargetHours:8; const bed=((wake-need)%24+24)%24; return {bed:Math.round(bed*4)/4, wake:Math.round(wake*4)/4, need}; }
+/* the sleep window we DRAW: wake comes from vitals (the past), but bedtime is
+ * YOUR choice — use it when you've set one, else fall back to the recommended bed. */
+function planSleep(){ const h=health(); const wake=wakeBed().wake; const bedH=(h&&h.bedtime)?parseHM(h.bedtime):null;
+  const bed=(bedH!=null)?bedH:optimalSleep().bed; return {wake:Math.round(wake*4)/4, bed:Math.round(bed*4)/4}; }
+function floatTo24(t){ t=((t%24)+24)%24; let H=Math.floor(t), M=Math.round((t-H)*60); if(M===60){H++;M=0;} return String(H%24).padStart(2,'0')+':'+String(M).padStart(2,'0'); }
+let sleepEditOpen=false;
+/* inline editor that pops on the graph — set when you woke + when you'll sleep */
+function sleepEditPopHtml(){ if(!sleepEditOpen)return ''; const ps=planSleep();
+  const h=health(); const wv=(h&&h.wakeTime&&parseHM(h.wakeTime)!=null)?floatTo24(parseHM(h.wakeTime)):floatTo24(ps.wake);
+  const bv=floatTo24(ps.bed);
+  return '<div class="sleepEditPop" id="sleepEditPop">'
+    +'<div class="sleepEditTitle">Your sleep</div>'
+    +'<label class="sleepEditRow"><span>I woke up at</span><input type="time" id="sleepWakeIn" value="'+wv+'"></label>'
+    +'<label class="sleepEditRow"><span>I’ll sleep at</span><input type="time" id="sleepBedIn" value="'+bv+'"></label>'
+    +'<div class="sleepEditBtns"><button class="sleepEditCancel" data-sleepcancel="1">Cancel</button><button class="sleepEditSaveBtn" data-sleepsave="1">Save</button></div>'
+    +'</div>'; }
+function saveSleepTimes(wakeHM, bedHM){ const h=health()||{source:'manual',connected:true}; const n=Object.assign({},h);
+  if(wakeHM)n.wakeTime=wakeHM; if(bedHM)n.bedtime=bedHM; n.connected=true; n.ts=Date.now(); saveHealth(n); _hl=undefined; sleepEditOpen=false; render(); }
 
 /* ============================================================
  * Schedule — natural-language tasks mapped onto the peak curve
@@ -1179,7 +1209,7 @@ function schOverlayHtml(){ const s=schedStyle(); const segs=effectiveSegments();
 // live "now" value bubble + dot + line on the graph, plus the bedtime moon (positions are data-driven; lanes resolved by layoutSchedPills)
 function nowOverlayHtml(){
   const t=nowT(), v=energyAt(t).e, left=(t/24*100), top=(yOf(v)/CH*100);
-  const sp=optimalSleep(), bedLeft=(sp.bed/24*100);
+  const sp=planSleep(), bedLeft=(sp.bed/24*100);
   return '<div class="nowline" style="left:'+left.toFixed(2)+'%"></div>'
     +'<div class="nowbubble" data-nowbubble="1" style="left:'+left.toFixed(2)+'%;top:'+top.toFixed(2)+'%"><b>'+Math.round(v)+'</b><span>'+clockOf(t)+'</span></div>'
     +'<div class="nowdot" style="left:'+left.toFixed(2)+'%;top:'+top.toFixed(2)+'%"></div>'
@@ -1308,21 +1338,21 @@ function gridLines(){ let g=''; for(let i=1;i<=3;i++){ const y=PADT+(i/4)*(CH-PA
 function nowMarker(){ const t=nowT(); const x=xOf(t); return '<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+(CH-PADB)+'" stroke="rgba(255,255,255,.18)" stroke-dasharray="3 4"/>'; }
 /* sleep window as a transparent, dashed-bordered ZONE — "you should be asleep here".
  * It wraps midnight, so it's two bands: 12A→wake and bed→12A. */
-function sleepMarkers(){ const {bed,wake}=optimalSleep();
+function sleepMarkers(){ const {bed,wake}=planSleep();
   const zone=(a,b)=>{ if(b<=a+0.05)return ''; const X=xOf(a), W=xOf(b)-xOf(a);
     return '<rect x="'+X.toFixed(1)+'" y="0" width="'+W.toFixed(1)+'" height="'+(CH-PADB)+'" fill="rgba(110,231,183,.045)" stroke="rgba(110,231,183,.4)" stroke-width="1.2" stroke-dasharray="5 5" rx="4"/>'; };
   return zone(0,wake)+zone(bed,24); }
 /* "sleep here / wake here" labels sitting on the sleep-zone edges */
-function sleepLabelsHtml(){ const {bed,wake}=optimalSleep();
+function sleepLabelsHtml(){ const {bed,wake}=planSleep();
   let h=''; const nightC=clamp((bed+24)/2/24*100,7,93);
   h+='<div class="sleepLbl" style="left:'+nightC.toFixed(1)+'%">☾ sleep</div>';
   if(wake>1) h+='<div class="sleepLbl" style="left:'+clamp(wake/2/24*100,5,95).toFixed(1)+'%">☾ sleep</div>';
   h+='<div class="sleepLbl wake" style="left:'+clamp(wake/24*100,4,96).toFixed(1)+'%">☀ wake '+clockOf(wake)+'</div>';
   return h; }
 /* invisible hover targets over the sleep zone — hovering reveals an "edit" button */
-function sleepHitHtml(){ const {bed,wake}=optimalSleep();
+function sleepHitHtml(){ const {bed,wake}=planSleep();
   const z=(a,b)=>{ if(b<=a+0.05)return ''; const L=(a/24*100), W=((b-a)/24*100); return '<div class="sleepHit" style="left:'+L.toFixed(2)+'%;width:'+W.toFixed(2)+'%"></div>'; };
-  return z(0,wake)+z(bed,24)+'<button id="sleepEditBtn" class="sleepEditBtn" data-addsleep="1" style="display:none">✎ Edit wake &amp; sleep time</button>'; }
+  return z(0,wake)+z(bed,24)+'<button id="sleepEditBtn" class="sleepEditBtn" data-sleepedit="1" style="display:none">✎ Edit wake &amp; sleep time</button>'; }
 function bindSleepEdit(){ const wrap=document.getElementById('chartWrap'); if(!wrap)return; const btn=document.getElementById('sleepEditBtn'); const hits=wrap.querySelectorAll('.sleepHit'); if(!btn||!hits.length)return; let hideT;
   const show=hitEl=>{ clearTimeout(hideT); const wr=wrap.getBoundingClientRect(), hr=hitEl.getBoundingClientRect(); btn.style.display='block'; let x=(hr.left+hr.right)/2-wr.left; x=clamp(x, btn.offsetWidth/2+8, wr.width-btn.offsetWidth/2-8); btn.style.left=x.toFixed(0)+'px'; };
   const hide=()=>{ hideT=setTimeout(()=>{ btn.style.display='none'; },160); };
@@ -1584,7 +1614,7 @@ function render(){
 
   const head='<div class="top">'+gem
     +'<div class="hgroup"><h1 class="htitle"><span class="maskLine"><span class="lineInner'+(titleRevealed?'':' reveal')+'">Your <em>peak</em> today</span></span></h1><p class="hdate">'+esc(dateStr)+'</p></div>'
-    +'</div>';
+    +'<a class="backLink" href="index.html">← Dashboard</a></div>';
   titleRevealed=true; // subsequent re-renders show the title static (no re-flip)
 
   const srcRow='<div class="srcRow"><span class="srcLab">Source</span>'+pill('manual','Manual')+pill('whoop','Whoop')+pill('apple','Apple Watch')+'</div>';
@@ -1633,10 +1663,10 @@ function render(){
   const peakRing='<div class="peakRing"><svg viewBox="0 0 84 84"><circle class="tr" cx="42" cy="42" r="38"/>'
     +'<circle class="fl" id="peakFill" cx="42" cy="42" r="38" style="stroke-dasharray:'+c2+';stroke-dashoffset:'+(c2*(1-PEAK.e/100))+'"/></svg>'
     +'<div class="peakNum" id="peakNum">'+Math.round(PEAK.e)+'</div></div>';
-  const sp=optimalSleep();
+  const sp=planSleep();
   const sleepPlan = hasWakeBedData()
-    ? '<div class="sleepPlan"><span class="spItem">🌙 Bed <b>'+clockOf(sp.bed)+'</b></span><span class="spDot">·</span><span class="spItem">☀️ Wake <b>'+clockOf(sp.wake)+'</b></span><span class="spNote"><b class="cdVal" data-countdown="'+bedCountdownMs()+'" style="color:var(--accent2)"></b> to bed · '+sp.need+'h target</span></div>'
-    : '<div class="sleepPlan" data-addsleep="1" style="cursor:pointer;border-color:rgba(245,158,11,.4)"><span class="spItem" style="color:var(--warn)">⚠ Add your wake &amp; sleep time</span><span class="spNote">tap — set it in your check-in so we can plan your day &amp; sleep window</span></div>';
+    ? '<div class="sleepPlan" data-sleepedit="1" style="cursor:pointer"><span class="spItem">🌙 Bed <b>'+clockOf(sp.bed)+'</b></span><span class="spDot">·</span><span class="spItem">☀️ Wake <b>'+clockOf(sp.wake)+'</b></span><span class="spNote"><b class="cdVal" data-countdown="'+bedCountdownMs()+'" style="color:var(--accent2)"></b> to bed · tap to edit</span></div>'
+    : '<div class="sleepPlan" data-sleepedit="1" style="cursor:pointer;border-color:rgba(245,158,11,.4)"><span class="spItem" style="color:var(--warn)">⚠ Set your wake &amp; sleep time</span><span class="spNote">tap to add when you woke + when you’ll sleep</span></div>';
   const cc=caffeineCrash(), mc=medCrash();
   let crashLabels='';
   if(cc) crashLabels+='<div class="crashMark" style="left:'+clamp(cc.t/24*100,6,94)+'%">☕ crash '+clockOf(cc.t)+'</div>';
@@ -1648,7 +1678,7 @@ function render(){
     + feelBarHtml()
     +'<div class="chartWrap" id="chartWrap">'+chartBackdropHtml()+chartSvg()
     +'<div class="sleepLabels">'+sleepLabelsHtml()+'</div>'
-    +sleepHitHtml()
+    +sleepHitHtml()+sleepEditPopHtml()
     +'<div class="schBands" id="schBands">'+schOverlayHtml()+'</div>'
     +'<div class="crashMarks">'+crashLabels+'</div>'
     +'<div class="scrubLine" id="scrubLine"></div><div class="scrubDot" id="scrubDot"></div><div class="scrubTip" id="scrubTip"></div><div class="dragTime" id="dragTime"></div></div>'
@@ -1699,7 +1729,7 @@ function caffeineCardHtml(){
     + searchBlock
     + caffLogsHtml()
     +'<div class="cafTip'+(tip.warn?' warn':'')+'"><span class="cafTipIcon">'+tip.icon+'</span><span class="cafTipTxt">'+tip.txt+'</span></div>'
-    +''
+    +'<a class="trackLink" href="stimulant.html">Open Caffeine tracker →</a>'
     +'</div>';
 }
 function caffLogsHtml(){
@@ -1857,7 +1887,9 @@ document.addEventListener('click',e=>{
   const aw=e.target.closest('[data-addworkout]'); if(aw){ workoutOpen=false; addWorkout(parseFloat(aw.dataset.addworkout)); return; }
   if(e.target.closest('[data-plantoggle]')){ planOpen=!planOpen; render(); return; }
   if(e.target.closest('[data-planadd]')){ const el=document.getElementById('schInput'); if(el){ el.scrollIntoView({behavior:'smooth',block:'center'}); el.focus(); } return; }
-  if(e.target.closest('[data-addsleep]')){ pickSource('manual'); setTimeout(()=>{ const el=document.querySelector('.manualCard'); if(el)el.scrollIntoView({behavior:'smooth',block:'center'}); },120); return; }
+  if(e.target.closest('[data-sleepedit]')){ sleepEditOpen=true; render(); return; }
+  if(e.target.closest('[data-sleepcancel]')){ sleepEditOpen=false; render(); return; }
+  if(e.target.closest('[data-sleepsave]')){ const w=document.getElementById('sleepWakeIn'), bd=document.getElementById('sleepBedIn'); saveSleepTimes(w&&w.value, bd&&bd.value); return; }
   const pb=e.target.closest('[data-pulse]'); if(pb){ startPulse(parseInt(pb.dataset.pulse,10)||30); return; }
   const rm=e.target.closest('[data-rmcaf]'); if(rm){ removeCaffLog(rm.dataset.rmcaf); return; }
   const cc=e.target.closest('[data-clearcaf]'); if(cc){ if(confirm('Clear all of today’s caffeine?')) clearCaffToday(); return; }
@@ -1912,6 +1944,20 @@ setInterval(tickCountdowns, 1000); // live countdowns (now-running / free / bedt
 </script>
 <script>
 /* brand.js (inlined for standalone) */
+/* ============================================================
+ * brand.js — the suite wordmark = the CURRENT USER'S name.
+ *
+ * Every page ships with the literal wordmark "Liam" (titles, the
+ * "← back" links, the live tickers, aria-labels). This swaps that
+ * wordmark for the name saved in the onboarding profile
+ * (patron_profile_v1), falling back to "Dashboard" until one is set.
+ *
+ * It runs on load AND re-applies after the page's own JS re-renders
+ * (via a MutationObserver), so JS-built markup stays branded too.
+ * If the user's name actually IS "Liam", it's a no-op.
+ *
+ * Include once per page, anywhere after <body> opens (we add it last).
+ * ============================================================ */
 (function () {
   var WORDMARK = 'Liam'; // the literal baked into every page's markup
   function brand() {
@@ -1972,7 +2018,6 @@ setInterval(tickCountdowns, 1000); // live countdowns (now-running / free / bedt
     if (e.key === 'patron_profile_v1' || e.key === null) run();
   });
 })();
-
 </script>
 </body>
 </html>
