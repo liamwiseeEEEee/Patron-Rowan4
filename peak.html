@@ -1409,7 +1409,7 @@ function crashMarkers(){ const cc=caffeineCrash(), mc=medCrash(); let s='';
   const ln=t=>{ const x=xOf(t); return '<line x1="'+x.toFixed(1)+'" y1="0" x2="'+x.toFixed(1)+'" y2="'+(CH-PADB)+'" stroke="#EF4444" stroke-width="1.4" stroke-dasharray="4 4" opacity=".7"/>'; };
   if(cc)s+=ln(cc.t); if(mc&&(!cc||Math.abs(mc.t-cc.t)>0.3))s+=ln(mc.t); return s;
 }
-const X_LABELS=['12A','3A','6A','9A','12P','3P','6P','9P','12A'];
+const X_LABELS=['12AM','3AM','6AM','9AM','12PM','3PM','6PM','9PM','12AM'];
 
 /* scrub */
 function curveAtT(t){ // interpolate energy at arbitrary t
