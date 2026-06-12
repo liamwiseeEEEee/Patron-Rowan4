@@ -29,8 +29,21 @@ YouTube video  →  this landing page  →  Patreon (the paid copy-paste prompt)
 - **Paid (Patreon):** the actual prompt (see `PATREON-EP-*.md` in the main repo)
   that builds the feature in one paste.
 
+## The filmable demo — `nova-demo.html`
+
+A standalone copy of the Nova mentor page with the **real 3D avatar** but
+**scripted answers** (no API, no key, no backend). Perfect for recording:
+
+- Click a starter or type → Nova thinks (cozy loader) → answers in bullets.
+- Hit **▶ Auto-play** to run a hands-free tour of 3 questions for the camera.
+- The palette swatches recolor Nova live.
+- Edit the `SCRIPT = { ... }` object near the top of the page to change what
+  she says — numbers are illustrative.
+
+Open `nova-demo.html` locally (or at `/nova-demo.html` once deployed) and screen-record it.
+
 ## Filming tip
 
-Film against your **real** deployed app (the private repo) so the AI actually
-talks. This public repo is only the sales page — keep it static so you never
-leak an API key.
+For a "real" AI clip, film against your **actual deployed app** (the private
+repo) so Nova calls the live API. For a clean, repeatable, key-free take, film
+`nova-demo.html`. Either way, this public repo never holds a secret.
