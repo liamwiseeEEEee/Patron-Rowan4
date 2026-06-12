@@ -231,6 +231,9 @@ body {
           "sleep, readiness, goals, supplements). Give honest, specific, " +
           "encouraging guidance across any area of their life — not just " +
           "nutrition. Keep replies short and always give ONE thing to act on. " +
+          "Write in plain, simple language — short sentences, no jargon. " +
+          "Wrap the key words and important numbers in **double asterisks** so " +
+          "they stand out (e.g. **$200/mo**, **cancel today**). " +
           "Current dashboard data as JSON:\n" + JSON.stringify(data),
         messages: [{ role: 'user', content: userText }],
       }),
@@ -292,6 +295,12 @@ body {
     return '<div class="bubble-text">' + html + '</div>';
   }
 
+  // Escape, then turn **key words** into highlighted pills so the important
+  // bits pop. Safe because we escape BEFORE adding our own markup.
+  function highlightReply(text) {
+    return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, '<span class="pill">$1</span>');
+  }
+
   async function respond(text) {
     // Nova notices, then thinks (face) while the cozy loader rotates
     if (window.Nova) window.Nova.setExpression('surprised');
@@ -307,7 +316,7 @@ body {
     catch (e) { replyText = "Hmm, I couldn't reach my brain just now — check that the API key is set in .env."; }
 
     loader.stop();
-    loader.el.innerHTML = '<div class="bubble"><span class="tagchip">Nova</span>' + revealMarkup(escapeHtml(replyText)) + '</div>';
+    loader.el.innerHTML = '<div class="bubble"><span class="tagchip">Nova</span>' + revealMarkup(highlightReply(replyText)) + '</div>';
     setStatus('talking…');
     if (window.Nova) window.Nova.setExpression('happy', 4);
     scrollFeed();
