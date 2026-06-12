@@ -423,8 +423,11 @@ body {
 
   const avatar = new THREE.Group(); scene.add(avatar)
 
+  // "Orbit" variant: a large faceted icosahedron (ported from the avatar lab).
+  const R = 1.45
+  const coreGeo = new THREE.IcosahedronGeometry(R, 0)
   const core = new THREE.Mesh(
-    new THREE.OctahedronGeometry(1.18, 0),
+    coreGeo,
     new THREE.MeshPhysicalMaterial({
       color: new THREE.Color('#dfe8ff'), metalness: 0, roughness: 0.06,
       transmission: 0.9, thickness: 2.0, ior: 1.6, clearcoat: 1, clearcoatRoughness: 0.1,
@@ -434,8 +437,14 @@ body {
   )
   avatar.add(core)
 
+  // crisp edge "borders" so the facets read clearly (rotate + breathe with the core)
+  core.add(new THREE.LineSegments(
+    new THREE.EdgesGeometry(coreGeo),
+    new THREE.LineBasicMaterial({ color: new THREE.Color('#eafcff'), transparent: true, opacity: 0.85 })
+  ))
+
   const glow = new THREE.Mesh(
-    new THREE.SphereGeometry(0.55, 32, 32),
+    new THREE.SphereGeometry(R * 0.47, 32, 32),
     new THREE.MeshBasicMaterial({ color: VIOLET, transparent: true, opacity: 0.5, blending: THREE.AdditiveBlending })
   )
   avatar.add(glow)
@@ -527,9 +536,9 @@ body {
     faceTex.needsUpdate = true
   }
   drawFace(1, 'neutral')
-  const face = new THREE.Mesh(new THREE.PlaneGeometry(1.05, 1.05),
+  const face = new THREE.Mesh(new THREE.PlaneGeometry(R * 0.9, R * 0.9),
     new THREE.MeshBasicMaterial({ map: faceTex, transparent: true, opacity: 0.98, depthTest: false, depthWrite: false }))
-  face.position.set(0, 0, 1.25)
+  face.position.set(0, 0, R + 0.07)
   face.renderOrder = 999
   avatar.add(face)
 
